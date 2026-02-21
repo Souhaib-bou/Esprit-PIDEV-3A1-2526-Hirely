@@ -20,6 +20,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import model.ForumComment;
 import model.ForumPost;
+import org.kordamp.ikonli.javafx.FontIcon;
 import repo.ForumCommentRepository;
 import repo.ForumPostRepository;
 import repo.UserRepository;
@@ -58,10 +59,17 @@ public class AdminForumController {
     private Button userForumBtn;
     @FXML
     private ToggleButton themeToggle;
+    @FXML
+    private FontIcon themeIcon;
 
     // Window controls
     private double xOffset = 0;
     private double yOffset = 0;
+    private boolean customMaximized = false;
+    private double restoreX = 0;
+    private double restoreY = 0;
+    private double restoreWidth = 0;
+    private double restoreHeight = 0;
 
     // Tabs
     @FXML
@@ -640,7 +648,14 @@ public class AdminForumController {
     private void syncThemeToggle() {
         boolean light = Session.LIGHT_MODE;
         themeToggle.setSelected(light);
-        themeToggle.setText(light ? "Dark" : "Light");
+        themeToggle.setText("");
+        if (themeIcon != null) {
+            themeIcon.setIconLiteral(light ? "fas-sun" : "fas-moon");
+        }
+        themeToggle.getStyleClass().remove("icon-accent");
+        if (light) {
+            themeToggle.getStyleClass().add("icon-accent");
+        }
     }
 
     private void applyThemeToScene() {
@@ -683,14 +698,24 @@ public class AdminForumController {
     private void onMaximize() {
         if (logoView.getScene().getWindow() instanceof javafx.stage.Stage s) {
             javafx.geometry.Rectangle2D bounds = javafx.stage.Screen.getPrimary().getVisualBounds();
-            if (s.isMaximized()) {
+            if (customMaximized) {
                 s.setMaximized(false);
+                s.setX(restoreX);
+                s.setY(restoreY);
+                s.setWidth(restoreWidth);
+                s.setHeight(restoreHeight);
+                customMaximized = false;
             } else {
+                restoreX = s.getX();
+                restoreY = s.getY();
+                restoreWidth = s.getWidth();
+                restoreHeight = s.getHeight();
+                s.setMaximized(false);
                 s.setX(bounds.getMinX());
                 s.setY(bounds.getMinY());
                 s.setWidth(bounds.getWidth());
                 s.setHeight(bounds.getHeight());
-                s.setMaximized(true);
+                customMaximized = true;
             }
         }
     }

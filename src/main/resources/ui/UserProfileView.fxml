@@ -3,6 +3,7 @@
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
 
 <BorderPane xmlns="http://javafx.com/javafx/21"
             xmlns:fx="http://javafx.com/fxml/1"
@@ -12,8 +13,16 @@
         <HBox fx:id="appBar" styleClass="app-bar" alignment="CENTER_LEFT" spacing="12">
             <Label fx:id="profileTitle" text="My Profile" styleClass="section-title"/>
             <Region HBox.hgrow="ALWAYS"/>
-            <Button text="Refresh" onAction="#onRefresh" styleClass="secondary"/>
-            <ToggleButton fx:id="themeToggle" text="Light" onAction="#onToggleTheme" styleClass="secondary"/>
+            <Button text="Refresh" onAction="#onRefresh" styleClass="secondary">
+                <graphic>
+                    <FontIcon iconLiteral="fas-sync-alt"/>
+                </graphic>
+            </Button>
+            <ToggleButton fx:id="themeToggle" onAction="#onToggleTheme" styleClass="icon-btn" contentDisplay="GRAPHIC_ONLY">
+                <graphic>
+                    <FontIcon fx:id="themeIcon" iconLiteral="fas-moon"/>
+                </graphic>
+            </ToggleButton>
 
             <HBox spacing="8" alignment="CENTER_RIGHT">
                  <padding><Insets left="16"/></padding>
@@ -25,18 +34,18 @@
     </top>
 
     <center>
-        <VBox spacing="14" fillWidth="true">
-            <padding>
-                <Insets top="18" right="18" bottom="18" left="18"/>
-            </padding>
-
-            <TabPane tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
+        <VBox alignment="TOP_CENTER" fillWidth="true" styleClass="page">
+            <VBox spacing="14" maxWidth="1200" prefWidth="1200" VBox.vgrow="ALWAYS">
+                <VBox styleClass="section-card" VBox.vgrow="ALWAYS">
+                    <TabPane tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
                 <tabs>
                     <Tab text="My Posts">
                         <BorderPane>
                             <padding><Insets top="14" right="14" bottom="14" left="14"/></padding>
                             <center>
-                                <ListView fx:id="myPostsList"/>
+                                <VBox styleClass="section-card" VBox.vgrow="ALWAYS">
+                                    <ListView fx:id="myPostsList" VBox.vgrow="ALWAYS"/>
+                                </VBox>
                             </center>
                         </BorderPane>
                     </Tab>
@@ -45,12 +54,16 @@
                         <BorderPane>
                             <padding><Insets top="14" right="14" bottom="14" left="14"/></padding>
                             <center>
-                                <ListView fx:id="myCommentsList"/>
+                                <VBox styleClass="section-card" VBox.vgrow="ALWAYS">
+                                    <ListView fx:id="myCommentsList" VBox.vgrow="ALWAYS"/>
+                                </VBox>
                             </center>
                         </BorderPane>
                     </Tab>
                 </tabs>
-            </TabPane>
+                    </TabPane>
+                </VBox>
+            </VBox>
         </VBox>
     </center>
 

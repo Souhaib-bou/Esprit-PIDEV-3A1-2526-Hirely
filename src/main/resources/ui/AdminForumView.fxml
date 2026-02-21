@@ -5,6 +5,7 @@
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.shape.*?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
 
 <BorderPane xmlns="http://javafx.com/javafx/21"
             xmlns:fx="http://javafx.com/fxml/1"
@@ -21,10 +22,18 @@
             <Region HBox.hgrow="ALWAYS"/>
 
             <TextField fx:id="searchField" promptText="Search posts..." prefWidth="320"/>
-            <ComboBox fx:id="sortBox" prefWidth="140"/>
+            <ComboBox fx:id="sortBox" styleClass="combo-small"/>
             <Button fx:id="newPostBtn" text="New Post" onAction="#onNewPost" styleClass="primary"/>
-            <Button fx:id="userForumBtn" text="User Forum" onAction="#onOpenUserForum" styleClass="secondary"/>
-            <ToggleButton fx:id="themeToggle" text="Light" onAction="#onToggleTheme" styleClass="secondary"/>
+            <Button fx:id="userForumBtn" text="User Forum" onAction="#onOpenUserForum" styleClass="secondary">
+                <graphic>
+                    <FontIcon iconLiteral="fas-users"/>
+                </graphic>
+            </Button>
+            <ToggleButton fx:id="themeToggle" onAction="#onToggleTheme" styleClass="icon-btn" contentDisplay="GRAPHIC_ONLY">
+                <graphic>
+                    <FontIcon fx:id="themeIcon" iconLiteral="fas-moon"/>
+                </graphic>
+            </ToggleButton>
 
             <ComboBox fx:id="devUserBox" prefWidth="150" />
 
@@ -39,7 +48,10 @@
     </top>
 
     <center>
-        <TabPane fx:id="mainTabs" side="TOP" tabClosingPolicy="UNAVAILABLE">
+        <VBox alignment="TOP_CENTER" fillWidth="true" styleClass="page">
+            <VBox maxWidth="1240" prefWidth="1240" VBox.vgrow="ALWAYS">
+                <VBox styleClass="section-card" VBox.vgrow="ALWAYS">
+                    <TabPane fx:id="mainTabs" side="TOP" tabClosingPolicy="UNAVAILABLE" VBox.vgrow="ALWAYS">
             <tabs>
                 <!-- FEED TAB -->
                 <Tab text="Feed">
@@ -52,10 +64,16 @@
                             <HBox alignment="CENTER_LEFT" spacing="10">
                                 <Label text="Latest Posts" styleClass="section-title"/>
                                 <Region HBox.hgrow="ALWAYS"/>
-                                <Button text="Refresh" onAction="#onRefreshPosts" styleClass="secondary"/>
+                                <Button text="Refresh" onAction="#onRefreshPosts" styleClass="secondary">
+                                    <graphic>
+                                        <FontIcon iconLiteral="fas-sync-alt"/>
+                                    </graphic>
+                                </Button>
                             </HBox>
 
-                            <ListView fx:id="postListView" VBox.vgrow="ALWAYS"/>
+                            <VBox styleClass="section-card" VBox.vgrow="ALWAYS">
+                                <ListView fx:id="postListView" VBox.vgrow="ALWAYS"/>
+                            </VBox>
                         </VBox>
 
                         <!-- RIGHT: Preview / Compact View -->
@@ -100,13 +118,13 @@
                 <Tab fx:id="postTab" text="Post">
                     <ScrollPane fitToWidth="true" hbarPolicy="NEVER" pannable="true">
                         <content>
-                            <VBox fx:id="postPage" spacing="20" alignment="TOP_LEFT" fillWidth="true">
+                            <VBox fx:id="postPage" spacing="20" alignment="TOP_LEFT" fillWidth="true" styleClass="page">
                                 <padding>
                                     <Insets top="24" right="40" bottom="24" left="40"/>
                                 </padding>
 
                                 <!-- Full Post Card -->
-                                <VBox spacing="16" styleClass="card" maxWidth="Infinity">
+                                <VBox spacing="16" styleClass="section-card" maxWidth="Infinity">
                                     <padding>
                                         <Insets top="22" right="22" bottom="22" left="22"/>
                                     </padding>
@@ -125,11 +143,11 @@
                                 </VBox>
 
                                 <!-- Comment Input -->
-                                <VBox spacing="12">
+                                <VBox spacing="12" styleClass="section-card">
                                     <Label text="What are your thoughts?" styleClass="section-title"/>
                                     <HBox spacing="16">
                                         <TextArea fx:id="commentArea2" promptText="Write a comment..." wrapText="true"
-                                                  prefRowCount="4" HBox.hgrow="ALWAYS" styleClass="card"/>
+                                                  prefRowCount="4" HBox.hgrow="ALWAYS"/>
 
                                         <VBox spacing="10" minWidth="180">
                                             <ComboBox fx:id="commentStatusBox2" maxWidth="Infinity"/>
@@ -141,11 +159,15 @@
                                 </VBox>
 
                                 <!-- Comments List -->
-                                <VBox spacing="12" VBox.vgrow="ALWAYS">
+                                <VBox spacing="12" VBox.vgrow="ALWAYS" styleClass="section-card">
                                     <HBox alignment="CENTER_LEFT">
                                         <Label text="Comments" styleClass="section-title"/>
                                         <Region HBox.hgrow="ALWAYS"/>
-                                        <Button text="Refresh Comments" onAction="#onRefreshComments2" styleClass="secondary"/>
+                                        <Button text="Refresh Comments" onAction="#onRefreshComments2" styleClass="secondary">
+                                            <graphic>
+                                                <FontIcon iconLiteral="fas-sync-alt"/>
+                                            </graphic>
+                                        </Button>
                                     </HBox>
                                     <ListView fx:id="commentListView2" VBox.vgrow="ALWAYS" />
                                 </VBox>
@@ -154,7 +176,10 @@
                     </ScrollPane>
                 </Tab>
             </tabs>
-        </TabPane>
+                    </TabPane>
+                </VBox>
+            </VBox>
+        </VBox>
     </center>
 
 </BorderPane>

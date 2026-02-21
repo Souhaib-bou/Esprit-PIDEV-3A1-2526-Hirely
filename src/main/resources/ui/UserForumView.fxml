@@ -4,6 +4,7 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.*?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
 
 <StackPane xmlns="http://javafx.com/javafx/21"
            xmlns:fx="http://javafx.com/fxml/1"
@@ -27,13 +28,25 @@
                 <Region HBox.hgrow="ALWAYS"/>
 
                 <TextField fx:id="searchField" promptText="Search approved posts..." prefWidth="280"/>
-                <ComboBox fx:id="sortBox" prefWidth="140"/>
+                <ComboBox fx:id="sortBox" styleClass="combo-small"/>
 
                 <Button fx:id="newPostBtn" text="New Post" onAction="#onNewPost" styleClass="primary"/>
-                <Button fx:id="profileBtn" text="Profile" onAction="#onOpenProfile" styleClass="secondary"/>
-                <Button fx:id="adminPanelBtn" text="Admin Panel" onAction="#onOpenAdminPanel" styleClass="secondary"/>
+                <Button fx:id="profileBtn" text="Profile" onAction="#onOpenProfile" styleClass="secondary">
+                    <graphic>
+                        <FontIcon iconLiteral="fas-user"/>
+                    </graphic>
+                </Button>
+                <Button fx:id="adminPanelBtn" text="Admin Panel" onAction="#onOpenAdminPanel" styleClass="secondary">
+                    <graphic>
+                        <FontIcon iconLiteral="fas-shield-alt"/>
+                    </graphic>
+                </Button>
                 <Button fx:id="becomeAdminBtn" text="Dev: Admin" onAction="#onBecomeAdmin" styleClass="secondary" />
-                <ToggleButton fx:id="themeToggle" text="Light" onAction="#onToggleTheme" styleClass="secondary"/>
+                <ToggleButton fx:id="themeToggle" onAction="#onToggleTheme" styleClass="icon-btn" contentDisplay="GRAPHIC_ONLY">
+                    <graphic>
+                        <FontIcon fx:id="themeIcon" iconLiteral="fas-moon"/>
+                    </graphic>
+                </ToggleButton>
 
                 <ComboBox fx:id="devUserBox" prefWidth="120" />
 
@@ -48,19 +61,21 @@
 
         <!-- CENTER FEED (CENTERED COLUMN) -->
         <center>
-            <VBox alignment="TOP_CENTER" fillWidth="true">
-                <padding>
-                    <Insets top="22" right="20" bottom="22" left="20"/>
-                </padding>
-
-                <VBox fx:id="feedColumn" spacing="14" maxWidth="1350" prefWidth="1350" VBox.vgrow="ALWAYS">
+            <VBox alignment="TOP_CENTER" fillWidth="true" styleClass="page">
+                <VBox fx:id="feedColumn" spacing="14" maxWidth="1200" prefWidth="1200" VBox.vgrow="ALWAYS">
                     <HBox alignment="CENTER_LEFT" spacing="10">
                         <Label text="Feed" styleClass="section-title"/>
                         <Region HBox.hgrow="ALWAYS"/>
-                        <Button text="Refresh" onAction="#onRefresh" styleClass="secondary"/>
+                        <Button text="Refresh" onAction="#onRefresh" styleClass="secondary">
+                            <graphic>
+                                <FontIcon iconLiteral="fas-sync-alt"/>
+                            </graphic>
+                        </Button>
                     </HBox>
 
-                    <ListView fx:id="postListView" VBox.vgrow="ALWAYS" prefHeight="760"/>
+                    <VBox styleClass="section-card" spacing="12" VBox.vgrow="ALWAYS">
+                        <ListView fx:id="postListView" VBox.vgrow="ALWAYS" prefHeight="760"/>
+                    </VBox>
                 </VBox>
             </VBox>
         </center>

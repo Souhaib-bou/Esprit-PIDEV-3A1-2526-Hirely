@@ -8,9 +8,9 @@
 
     -bg: #f6f7fb;
     -surface: #ffffff;
-    -surface-2: #f1f3f8;
+    -surface-2: #f3f5fb;
     -surface-3: #ffffff;
-    -border: #d9deea;
+    -border: #e5e9f2;
 
     -text: #101828;
     -muted: #667085;
@@ -88,14 +88,29 @@
     -fx-border-width: 0 0 1 0;
 }
 
+.page {
+    -fx-background-color: transparent;
+    -fx-padding: 22 20 22 20;
+}
+
+.section-card {
+    -fx-background-color: -surface;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-border-color: -border;
+    -fx-border-width: 1;
+    -fx-padding: 18;
+    -fx-effect: dropshadow(three-pass-box, rgba(17, 24, 39, 0.08), 24, 0, 0, 10);
+}
+
 .card {
     -fx-background-color: -surface;
     -fx-border-color: -border;
     -fx-border-width: 1;
     -fx-background-radius: 16;
     -fx-border-radius: 16;
-    -fx-padding: 22;
-    -fx-effect: dropshadow(three-pass-box, rgba(16, 24, 40, 0.10), 18, 0, 0, 8);
+    -fx-padding: 18;
+    -fx-effect: dropshadow(three-pass-box, rgba(17, 24, 39, 0.06), 18, 0, 0, 8);
 }
 
 .card:hover {
@@ -154,6 +169,8 @@
     -fx-text-fill: -text;
     -fx-padding: 10 12;
     -fx-background-radius: 10;
+    -fx-font-weight: 800;
+    -fx-font-size: 16px;
 }
 
 .combo-box-popup .list-view .list-cell:hover {
@@ -162,6 +179,22 @@
 
 .combo-box-popup .list-view .list-cell:selected {
     -fx-background-color: rgba(255, 106, 0, 0.18);
+}
+
+.combo-box {
+    -fx-pref-height: 34px;
+    -fx-font-size: 16px;
+    -fx-font-weight: 800;
+}
+
+.combo-box .list-cell {
+    -fx-font-weight: 800;
+    -fx-font-size: 16px;
+}
+
+.combo-small {
+    -fx-pref-width: 92px;
+    -fx-pref-height: 32px;
 }
 
 .button,
@@ -232,6 +265,38 @@
     -fx-opacity: 0.55;
 }
 
+.ikonli-font-icon {
+    -fx-icon-size: 16px;
+    -fx-icon-color: -muted;
+}
+
+.button:hover .ikonli-font-icon,
+.toggle-button:hover .ikonli-font-icon {
+    -fx-icon-color: -text;
+}
+
+.icon-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: -border;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 6;
+    -fx-min-width: 34px;
+    -fx-min-height: 34px;
+    -fx-pref-width: 34px;
+    -fx-pref-height: 34px;
+}
+
+.icon-btn:hover {
+    -fx-border-color: -hirely-orange;
+    -fx-background-color: rgba(255, 106, 0, 0.08);
+}
+
+.icon-accent .ikonli-font-icon {
+    -fx-icon-color: -hirely-orange;
+}
+
 .list-view {
     -fx-background-color: transparent;
     -fx-control-inner-background: transparent;
@@ -240,7 +305,7 @@
 
 .list-cell {
     -fx-background-color: transparent;
-    -fx-padding: 0 0 16 0;
+    -fx-padding: 0 0 14 0;
 }
 
 .list-cell:filled:selected {
@@ -258,14 +323,37 @@
     -fx-border-radius: 14;
 }
 
+.pill {
+    -fx-padding: 4 14;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-font-weight: 700;
+}
+
+.pill.orange {
+    -fx-background-color: rgba(255, 106, 0, 0.12);
+    -fx-border-color: rgba(255, 106, 0, 0.25);
+    -fx-text-fill: #c2410c;
+}
+
+.pill.green {
+    -fx-background-color: rgba(34, 197, 94, 0.15);
+    -fx-border-color: rgba(34, 197, 94, 0.25);
+    -fx-text-fill: #15803d;
+}
+
+.pill.gray {
+    -fx-background-color: rgba(107, 114, 128, 0.12);
+    -fx-border-color: rgba(107, 114, 128, 0.18);
+    -fx-text-fill: #374151;
+}
+
 .chip {
     -fx-padding: 4 14;
     -fx-background-radius: 999;
     -fx-border-radius: 999;
-
     -fx-background-color: rgba(255, 106, 0, 0.12);
     -fx-border-color: rgba(255, 106, 0, 0.35);
-
     -fx-text-fill: #c2410c;
     -fx-font-weight: 800;
 }

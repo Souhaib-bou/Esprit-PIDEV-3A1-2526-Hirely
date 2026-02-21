@@ -51,8 +51,8 @@ public class PostCardCell extends ListCell<ForumPost> {
         preview.getStyleClass().add("post-card-preview");
         meta.getStyleClass().add("muted");
         flags.getStyleClass().add("muted");
-        catChip.getStyleClass().add("chip");
-        statusChip.getStyleClass().add("chip");
+        catChip.getStyleClass().addAll("pill", "orange");
+        statusChip.getStyleClass().addAll("pill", "gray");
         preview.setWrapText(true);
 
         Region spacer = new Region();

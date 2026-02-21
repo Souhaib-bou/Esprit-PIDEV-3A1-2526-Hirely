@@ -95,6 +95,21 @@
     -fx-border-width: 0 0 1 0;
 }
 
+.page {
+    -fx-background-color: transparent;
+    -fx-padding: 22 20 22 20;
+}
+
+.section-card {
+    -fx-background-color: #141c2a;
+    -fx-background-radius: 18;
+    -fx-border-radius: 18;
+    -fx-border-color: #2b3750;
+    -fx-border-width: 1;
+    -fx-padding: 18;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.35), 22, 0, 0, 10);
+}
+
 /* =========================================================
    Cards + “lift” behavior
    ========================================================= */
@@ -104,7 +119,7 @@
     -fx-border-width: 1;
     -fx-background-radius: 16;
     -fx-border-radius: 16;
-    -fx-padding: 22;
+    -fx-padding: 18;
     -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.45), 18, 0, 0, 8);
 }
 
@@ -172,6 +187,8 @@
     -fx-text-fill: -text;
     -fx-padding: 10 12;
     -fx-background-radius: 10;
+    -fx-font-weight: 800;
+    -fx-font-size: 16px;
 }
 
 .combo-box-popup .list-view .list-cell:hover {
@@ -180,6 +197,22 @@
 
 .combo-box-popup .list-view .list-cell:selected {
     -fx-background-color: rgba(255, 106, 0, 0.18);
+}
+
+.combo-box {
+    -fx-pref-height: 34px;
+    -fx-font-size: 16px;
+    -fx-font-weight: 800;
+}
+
+.combo-box .list-cell {
+    -fx-font-weight: 800;
+    -fx-font-size: 16px;
+}
+
+.combo-small {
+    -fx-pref-width: 92px;
+    -fx-pref-height: 32px;
 }
 
 /* =========================================================
@@ -257,6 +290,38 @@
     -fx-opacity: 0.55;
 }
 
+.ikonli-font-icon {
+    -fx-icon-size: 16px;
+    -fx-icon-color: -muted;
+}
+
+.button:hover .ikonli-font-icon,
+.toggle-button:hover .ikonli-font-icon {
+    -fx-icon-color: -text;
+}
+
+.icon-btn {
+    -fx-background-color: transparent;
+    -fx-border-color: -border;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 6;
+    -fx-min-width: 34px;
+    -fx-min-height: 34px;
+    -fx-pref-width: 34px;
+    -fx-pref-height: 34px;
+}
+
+.icon-btn:hover {
+    -fx-border-color: -hirely-orange;
+    -fx-background-color: rgba(255, 106, 0, 0.08);
+}
+
+.icon-accent .ikonli-font-icon {
+    -fx-icon-color: -hirely-orange;
+}
+
 /* =========================================================
    ListView (important for your PostCardCell)
    ========================================================= */
@@ -269,7 +334,7 @@
 /* Remove default blue selection background and let “card:selected” shine */
 .list-cell {
     -fx-background-color: transparent;
-    -fx-padding: 0 0 16 0;
+    -fx-padding: 0 0 14 0;
 }
 
 .list-cell:filled:selected {
@@ -301,6 +366,31 @@
 
     -fx-text-fill: #ff7f2e;
     -fx-font-weight: 800;
+}
+
+.pill {
+    -fx-padding: 4 14;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-font-weight: 700;
+}
+
+.pill.orange {
+    -fx-background-color: rgba(255, 106, 0, 0.15);
+    -fx-border-color: rgba(255, 106, 0, 0.45);
+    -fx-text-fill: #ff9d5c;
+}
+
+.pill.green {
+    -fx-background-color: rgba(34, 197, 94, 0.16);
+    -fx-border-color: rgba(34, 197, 94, 0.35);
+    -fx-text-fill: #86efac;
+}
+
+.pill.gray {
+    -fx-background-color: rgba(182, 192, 207, 0.12);
+    -fx-border-color: rgba(182, 192, 207, 0.24);
+    -fx-text-fill: #d7dce3;
 }
 
 .chip-danger {
