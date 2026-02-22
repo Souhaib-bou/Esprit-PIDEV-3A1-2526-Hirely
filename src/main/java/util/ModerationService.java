@@ -5,8 +5,8 @@ public final class ModerationService {
     public static final String STATUS_PENDING = "PENDING";
     public static final String STATUS_REJECTED = "REJECTED";
 
-    // Optional local key fallback.
-    private static final String API_KEY = "AIzaSyBOoSB89x4BWPwjI4gR7gSKcJl87nIvTHQ";
+    // Optional local key fallback (leave empty; prefer env var PERSPECTIVE_API_KEY).
+    private static final String API_KEY = "";
 
     private static final double APPROVE_THRESHOLD = 0.20;
     private static final double REJECT_THRESHOLD = 0.80;
@@ -22,7 +22,7 @@ public final class ModerationService {
     }
 
     public ModerationResult decideStatus(String text) {
-        String apiKey = API_KEY == null ? "" : API_KEY.trim();
+        String apiKey = resolveApiKey();
         if (apiKey == null || apiKey.isBlank()) {
             DebugLog.info("Moderation", "API key is missing; falling back to PENDING");
             return ModerationResult.fallbackPending();
@@ -47,6 +47,14 @@ public final class ModerationService {
             return STATUS_REJECTED;
         }
         return STATUS_PENDING;
+    }
+
+    private String resolveApiKey() {
+        String env = System.getenv("PERSPECTIVE_API_KEY");
+        if (env != null && !env.isBlank()) {
+            return env.trim();
+        }
+        return API_KEY == null ? "" : API_KEY.trim();
     }
 
     public static final class ModerationResult {

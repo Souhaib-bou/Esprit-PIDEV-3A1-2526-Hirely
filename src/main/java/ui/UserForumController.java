@@ -20,12 +20,14 @@ import javafx.scene.layout.Priority;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import model.ForumPost;
+import model.ModerationReport;
 import org.kordamp.ikonli.javafx.FontIcon;
 import repo.ForumPostRepository;
 import repo.UserRepository;
-import util.ModerationService;
+import service.ModerationEngine;
 import util.Session;
 import util.InputValidator;
+import ui.components.ModerationDialog;
 import java.util.List;
 
 import java.util.Comparator;
@@ -77,7 +79,7 @@ public class UserForumController {
 
     private final ForumPostRepository postRepo = new ForumPostRepository();
     private final UserRepository userRepo = new UserRepository();
-    private final ModerationService moderationService = new ModerationService();
+    private final ModerationEngine moderationEngine = new ModerationEngine();
 
     private final ObservableList<ForumPost> allApproved = FXCollections.observableArrayList();
     private FilteredList<ForumPost> filtered;
@@ -302,35 +304,25 @@ public class UserForumController {
         Task<PostSubmissionOutcome> task = new Task<>() {
             @Override
             protected PostSubmissionOutcome call() throws Exception {
-                ModerationService.ModerationResult moderation =
-                        moderationService.decideStatus(buildModerationText(postDraft));
-
-                if (ModerationService.STATUS_REJECTED.equals(moderation.getStatus())) {
-                    return PostSubmissionOutcome.rejected(moderation);
-                }
-
-                postDraft.setStatus(moderation.getStatus());
+                ModerationReport report = moderationEngine
+                        .analyzeAsync(ModerationEngine.ContentType.POST, buildModerationText(postDraft))
+                        .join();
+                postDraft.setStatus(report.getDecision());
                 if (editing) {
                     postRepo.update(postDraft);
                 } else {
                     long newId = postRepo.insert(postDraft);
                     postDraft.setId(newId);
                 }
-
-                return PostSubmissionOutcome.saved(moderation, editing);
+                return new PostSubmissionOutcome(report, editing);
             }
         };
 
         task.setOnSucceeded(evt -> {
             setPostSubmissionBusy(false);
             PostSubmissionOutcome out = task.getValue();
-
-            if (out.rejected) {
-                showWarning("Rejected by automated moderation");
-                return;
-            }
-
-            showInfo(messageForPostStatus(out.status, out.usedFallback, out.editing));
+            ModerationDialog.show(out.report);
+            showInfo(messageForPostStatus(out.report, out.editing));
             onRefresh();
         });
 
@@ -364,13 +356,20 @@ public class UserForumController {
         return sb.toString();
     }
 
-    private String messageForPostStatus(String status, boolean usedFallback, boolean editing) {
-        if (usedFallback) {
-            return editing ? "Post updated and submitted for review (moderation service unavailable)"
-                    : "Post submitted for review (moderation service unavailable)";
+    private String messageForPostStatus(ModerationReport report, boolean editing) {
+        if (report == null) {
+            return editing ? "Post updated" : "Post submitted";
         }
-        if (ModerationService.STATUS_APPROVED.equals(status)) {
+        if (report.isFallbackUsed()) {
+            return editing ? "Post updated and submitted for review (AI unavailable)"
+                    : "Post submitted for review (AI unavailable)";
+        }
+        String status = report.getDecision();
+        if ("APPROVED".equals(status)) {
             return editing ? "Post updated and auto-approved" : "Post published (auto-approved)";
+        }
+        if ("REJECTED".equals(status)) {
+            return "Rejected by automated moderation";
         }
         return editing ? "Post updated and submitted for review" : "Post submitted for review";
     }
@@ -386,24 +385,12 @@ public class UserForumController {
     }
 
     private static final class PostSubmissionOutcome {
-        private final String status;
-        private final boolean usedFallback;
-        private final boolean rejected;
+        private final ModerationReport report;
         private final boolean editing;
 
-        private PostSubmissionOutcome(String status, boolean usedFallback, boolean rejected, boolean editing) {
-            this.status = status;
-            this.usedFallback = usedFallback;
-            this.rejected = rejected;
+        private PostSubmissionOutcome(ModerationReport report, boolean editing) {
+            this.report = report;
             this.editing = editing;
-        }
-
-        private static PostSubmissionOutcome saved(ModerationService.ModerationResult result, boolean editing) {
-            return new PostSubmissionOutcome(result.getStatus(), result.isUsedFallback(), false, editing);
-        }
-
-        private static PostSubmissionOutcome rejected(ModerationService.ModerationResult result) {
-            return new PostSubmissionOutcome(result.getStatus(), result.isUsedFallback(), true, false);
         }
     }
 
@@ -437,14 +424,6 @@ public class UserForumController {
     private void showInfo(String msg) {
         Alert a = new Alert(Alert.AlertType.INFORMATION);
         a.setTitle("Info");
-        a.setHeaderText(null);
-        a.setContentText(msg);
-        a.showAndWait();
-    }
-
-    private void showWarning(String msg) {
-        Alert a = new Alert(Alert.AlertType.WARNING);
-        a.setTitle("Moderation");
         a.setHeaderText(null);
         a.setContentText(msg);
         a.showAndWait();

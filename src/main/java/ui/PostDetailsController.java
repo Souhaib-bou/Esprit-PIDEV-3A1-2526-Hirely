@@ -14,14 +14,16 @@ import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
 import model.ForumComment;
 import model.ForumPost;
+import model.ModerationReport;
 import org.kordamp.ikonli.javafx.FontIcon;
 import repo.ForumCommentRepository;
 import repo.ForumPostRepository;
 import repo.UserRepository;
-import util.ModerationService;
+import service.ModerationEngine;
 import util.WikipediaClient;
 import util.Session;
 import util.InputValidator;
+import ui.components.ModerationDialog;
 import java.awt.Desktop;
 import java.net.URI;
 import java.util.List;
@@ -83,7 +85,7 @@ public class PostDetailsController {
     private final ForumCommentRepository commentRepo = new ForumCommentRepository();
     private final ForumPostRepository postRepo = new ForumPostRepository();
     private final UserRepository userRepo = new UserRepository();
-    private final ModerationService moderationService = new ModerationService();
+    private final ModerationEngine moderationEngine = new ModerationEngine();
 
     private final ObservableList<ForumComment> comments = FXCollections.observableArrayList();
 
@@ -430,33 +432,25 @@ public class PostDetailsController {
         Task<CommentSubmissionOutcome> task = new Task<>() {
             @Override
             protected CommentSubmissionOutcome call() throws Exception {
-                ModerationService.ModerationResult moderation =
-                        moderationService.decideStatus(commentDraft.getContent());
-
-                if (ModerationService.STATUS_REJECTED.equals(moderation.getStatus())) {
-                    return CommentSubmissionOutcome.rejected(moderation);
-                }
-
-                commentDraft.setStatus(moderation.getStatus());
+                ModerationReport report = moderationEngine
+                        .analyzeAsync(ModerationEngine.ContentType.COMMENT, commentDraft.getContent())
+                        .join();
+                commentDraft.setStatus(report.getDecision());
                 if (editing) {
                     commentRepo.update(commentDraft);
                 } else {
                     long id = commentRepo.insert(commentDraft);
                     commentDraft.setId(id);
                 }
-                return CommentSubmissionOutcome.saved(moderation, editing);
+                return new CommentSubmissionOutcome(report, editing);
             }
         };
 
         task.setOnSucceeded(evt -> {
             setCommentSubmissionBusy(false);
             CommentSubmissionOutcome out = task.getValue();
-            if (out.rejected) {
-                showWarning("Rejected by automated moderation");
-                return;
-            }
-
-            showInfo(messageForCommentStatus(out.status, out.usedFallback, out.editing));
+            ModerationDialog.show(out.report);
+            showInfo(messageForCommentStatus(out.report, out.editing));
             loadComments();
             refreshCommentActionVisibility();
         });
@@ -477,29 +471,21 @@ public class PostDetailsController {
         Task<PostUpdateOutcome> task = new Task<>() {
             @Override
             protected PostUpdateOutcome call() throws Exception {
-                ModerationService.ModerationResult moderation =
-                        moderationService.decideStatus(buildPostModerationText(draft));
-
-                if (ModerationService.STATUS_REJECTED.equals(moderation.getStatus())) {
-                    return PostUpdateOutcome.rejected(moderation);
-                }
-
-                draft.setStatus(moderation.getStatus());
+                ModerationReport report = moderationEngine
+                        .analyzeAsync(ModerationEngine.ContentType.POST, buildPostModerationText(draft))
+                        .join();
+                draft.setStatus(report.getDecision());
                 postRepo.update(draft);
-                return PostUpdateOutcome.saved(moderation);
+                return new PostUpdateOutcome(report);
             }
         };
 
         task.setOnSucceeded(evt -> {
             setPostSubmissionBusy(false);
             PostUpdateOutcome out = task.getValue();
-            if (out.rejected) {
-                showWarning("Rejected by automated moderation");
-                return;
-            }
-
+            ModerationDialog.show(out.report);
             applyPostDraft(draft);
-            showInfo(messageForPostStatus(out.status, out.usedFallback));
+            showInfo(messageForPostStatus(out.report));
             render();
             applyPermissions();
         });
@@ -545,23 +531,37 @@ public class PostDetailsController {
         return sb.toString();
     }
 
-    private String messageForCommentStatus(String status, boolean usedFallback, boolean editing) {
-        if (usedFallback) {
-            return editing ? "Comment updated and submitted for review (moderation service unavailable)"
-                    : "Comment submitted for review (moderation service unavailable)";
+    private String messageForCommentStatus(ModerationReport report, boolean editing) {
+        if (report == null) {
+            return editing ? "Comment updated" : "Comment submitted";
         }
-        if (ModerationService.STATUS_APPROVED.equals(status)) {
+        if (report.isFallbackUsed()) {
+            return editing ? "Comment updated and submitted for review (AI unavailable)"
+                    : "Comment submitted for review (AI unavailable)";
+        }
+        String status = report.getDecision();
+        if ("APPROVED".equals(status)) {
             return editing ? "Comment updated and auto-approved" : "Comment posted (auto-approved)";
+        }
+        if ("REJECTED".equals(status)) {
+            return "Rejected by automated moderation";
         }
         return editing ? "Comment updated and submitted for review" : "Submitted for review";
     }
 
-    private String messageForPostStatus(String status, boolean usedFallback) {
-        if (usedFallback) {
-            return "Post updated and submitted for review (moderation service unavailable)";
+    private String messageForPostStatus(ModerationReport report) {
+        if (report == null) {
+            return "Post updated";
         }
-        if (ModerationService.STATUS_APPROVED.equals(status)) {
+        if (report.isFallbackUsed()) {
+            return "Post updated and submitted for review (AI unavailable)";
+        }
+        String status = report.getDecision();
+        if ("APPROVED".equals(status)) {
             return "Post updated and auto-approved";
+        }
+        if ("REJECTED".equals(status)) {
+            return "Rejected by automated moderation";
         }
         return "Post updated and submitted for review";
     }
@@ -607,44 +607,20 @@ public class PostDetailsController {
     }
 
     private static final class CommentSubmissionOutcome {
-        private final String status;
-        private final boolean usedFallback;
-        private final boolean rejected;
+        private final ModerationReport report;
         private final boolean editing;
 
-        private CommentSubmissionOutcome(String status, boolean usedFallback, boolean rejected, boolean editing) {
-            this.status = status;
-            this.usedFallback = usedFallback;
-            this.rejected = rejected;
+        private CommentSubmissionOutcome(ModerationReport report, boolean editing) {
+            this.report = report;
             this.editing = editing;
-        }
-
-        private static CommentSubmissionOutcome saved(ModerationService.ModerationResult result, boolean editing) {
-            return new CommentSubmissionOutcome(result.getStatus(), result.isUsedFallback(), false, editing);
-        }
-
-        private static CommentSubmissionOutcome rejected(ModerationService.ModerationResult result) {
-            return new CommentSubmissionOutcome(result.getStatus(), result.isUsedFallback(), true, false);
         }
     }
 
     private static final class PostUpdateOutcome {
-        private final String status;
-        private final boolean usedFallback;
-        private final boolean rejected;
+        private final ModerationReport report;
 
-        private PostUpdateOutcome(String status, boolean usedFallback, boolean rejected) {
-            this.status = status;
-            this.usedFallback = usedFallback;
-            this.rejected = rejected;
-        }
-
-        private static PostUpdateOutcome saved(ModerationService.ModerationResult result) {
-            return new PostUpdateOutcome(result.getStatus(), result.isUsedFallback(), false);
-        }
-
-        private static PostUpdateOutcome rejected(ModerationService.ModerationResult result) {
-            return new PostUpdateOutcome(result.getStatus(), result.isUsedFallback(), true);
+        private PostUpdateOutcome(ModerationReport report) {
+            this.report = report;
         }
     }
 

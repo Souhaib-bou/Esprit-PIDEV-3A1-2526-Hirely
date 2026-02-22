@@ -1,0 +1,77 @@
+UserForumController sorting + search logic
+------------------------------------------
+// Sorting options for feed chronology.
+sortBox.setItems(FXCollections.observableArrayList("New", "Old"));
+sortBox.getSelectionModel().select("New");
+
+filtered = new FilteredList<>(allApproved, p -> true);
+sorted = new SortedList<>(filtered);
+sorted.setComparator(postComparator(sortBox.getValue()));
+postListView.setItems(sorted);
+
+sortBox.valueProperty().addListener((obs, o, v) -> sorted.setComparator(postComparator(v)));
+
+searchField.textProperty().addListener((obs, o, v) -> {
+    String q = (v == null ? "" : v.trim().toLowerCase());
+    filtered.setPredicate(p -> {
+        if (q.isEmpty())
+            return true;
+        String t = safe(p.getTitle()).toLowerCase();
+        String c = safe(p.getContent()).toLowerCase();
+        String cat = safe(p.getCategory()).toLowerCase();
+        return t.contains(q) || c.contains(q) || cat.contains(q);
+    });
+});
+
+private Comparator<ForumPost> postComparator(String mode) {
+    Comparator<ForumPost> pinnedFirst = Comparator.comparing(ForumPost::isPinned).reversed();
+
+    Comparator<ForumPost> byCreatedAsc = Comparator.comparing(
+            ForumPost::getCreatedAt,
+            Comparator.nullsLast(Comparator.naturalOrder()));
+
+    Comparator<ForumPost> byCreatedDesc = byCreatedAsc.reversed();
+
+    Comparator<ForumPost> byDate = "Old".equalsIgnoreCase(mode) ? byCreatedAsc : byCreatedDesc;
+
+    // pinned always stays on top, then apply New/Old sorting inside each group
+    return pinnedFirst.thenComparing(byDate);
+}
+
+
+AdminForumController sorting + search logic
+-------------------------------------------
+sortBox.setItems(FXCollections.observableArrayList("New", "Old"));
+sortBox.getSelectionModel().select("New");
+
+filteredPosts = new FilteredList<>(allPosts, p -> true);
+sortedPosts = new SortedList<>(filteredPosts);
+sortedPosts.setComparator(postComparator(sortBox.getValue()));
+postListView.setItems(sortedPosts);
+
+sortBox.valueProperty().addListener((obs, oldV, v) -> sortedPosts.setComparator(postComparator(v)));
+
+searchField.textProperty().addListener((obs, oldV, v) -> {
+    String q = v == null ? "" : v.trim().toLowerCase();
+    filteredPosts.setPredicate(p -> {
+        if (q.isEmpty())
+            return true;
+        return safe(p.getTitle()).toLowerCase().contains(q)
+                || safe(p.getCategory()).toLowerCase().contains(q)
+                || safe(p.getContent()).toLowerCase().contains(q);
+    });
+});
+
+private Comparator<ForumPost> postComparator(String mode) {
+    Comparator<ForumPost> pinnedFirst = Comparator.comparing(ForumPost::isPinned).reversed();
+
+    Comparator<ForumPost> byCreatedAsc = Comparator.comparing(
+            ForumPost::getCreatedAt,
+            Comparator.nullsLast(Comparator.naturalOrder()));
+
+    Comparator<ForumPost> byCreatedDesc = byCreatedAsc.reversed();
+
+    Comparator<ForumPost> byDate = "Old".equalsIgnoreCase(mode) ? byCreatedAsc : byCreatedDesc;
+
+    return pinnedFirst.thenComparing(byDate);
+}

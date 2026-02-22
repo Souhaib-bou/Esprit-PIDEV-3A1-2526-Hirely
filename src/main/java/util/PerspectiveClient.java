@@ -24,6 +24,10 @@ public final class PerspectiveClient {
     }
 
     public double analyzeToxicity(String text, String apiKey) throws Exception {
+        return analyze(text, apiKey).getToxicity();
+    }
+
+    public PerspectiveResult analyze(String text, String apiKey) throws Exception {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalArgumentException("Missing Perspective API key");
         }
@@ -39,7 +43,9 @@ public final class PerspectiveClient {
                 .POST(HttpRequest.BodyPublishers.ofString(payload))
                 .build();
 
+        long startNs = System.nanoTime();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        long latencyMs = elapsedMs(startNs);
         DebugLog.info("Perspective", "Response status=" + response.statusCode()
                 + ", bodyLen=" + safeLength(response.body()));
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
@@ -49,7 +55,7 @@ public final class PerspectiveClient {
 
         double toxicity = parseToxicity(response.body());
         DebugLog.info("Perspective", "Parsed TOXICITY summaryScore.value=" + toxicity);
-        return toxicity;
+        return new PerspectiveResult(toxicity, trimRaw(response.body()), latencyMs);
     }
 
     private String buildPayload(String text) {
@@ -116,5 +122,44 @@ public final class PerspectiveClient {
             return compact;
         }
         return compact.substring(0, 220) + "...";
+    }
+
+    private String trimRaw(String value) {
+        if (value == null) {
+            return "";
+        }
+        String compact = value.replace('\n', ' ').replace('\r', ' ');
+        if (compact.length() <= 2000) {
+            return compact;
+        }
+        return compact.substring(0, 2000) + "...";
+    }
+
+    private long elapsedMs(long startNs) {
+        return (System.nanoTime() - startNs) / 1_000_000;
+    }
+
+    public static final class PerspectiveResult {
+        private final double toxicity;
+        private final String raw;
+        private final long latencyMs;
+
+        public PerspectiveResult(double toxicity, String raw, long latencyMs) {
+            this.toxicity = toxicity;
+            this.raw = raw;
+            this.latencyMs = latencyMs;
+        }
+
+        public double getToxicity() {
+            return toxicity;
+        }
+
+        public String getRaw() {
+            return raw;
+        }
+
+        public long getLatencyMs() {
+            return latencyMs;
+        }
     }
 }
