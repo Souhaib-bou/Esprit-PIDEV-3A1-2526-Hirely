@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Text?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.hirely.controllers.ScheduleInterviewController"
+      prefWidth="600" spacing="20" style="-fx-padding: 24px; -fx-background-color: white;">
+
+    <!-- Header -->
+    <VBox spacing="8">
+        <Text text="Schedule Interview" style="-fx-font-size: 24px; -fx-font-weight: 700; -fx-fill: #2D2D2D;"/>
+        <Text text="Create a new interview appointment with a candidate" style="-fx-font-size: 14px; -fx-fill: #6b7280;"/>
+    </VBox>
+
+    <Separator/>
+
+    <!-- Form -->
+    <ScrollPane fitToWidth="true" prefHeight="450" style="-fx-background-color: transparent;">
+        <VBox spacing="20">
+
+            <!-- Select Candidate/Application -->
+            <VBox spacing="8">
+                <Label text="Select Candidate *" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                <ComboBox fx:id="applicationComboBox" promptText="Choose a candidate..."
+                          prefWidth="550" style="-fx-font-size: 14px;"/>
+                <Text text="Only showing shortlisted applications ready for interview"
+                      style="-fx-font-size: 12px; -fx-fill: #9ca3af;"/>
+            </VBox>
+
+            <!-- Interview Type -->
+            <VBox spacing="8">
+                <Label text="Interview Type *" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                <ComboBox fx:id="interviewTypeComboBox" promptText="Select interview type..."
+                          prefWidth="550" style="-fx-font-size: 14px;"/>
+            </VBox>
+
+            <!-- Date and Time -->
+            <HBox spacing="20">
+                <VBox spacing="8" HBox.hgrow="ALWAYS">
+                    <Label text="Date *" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                    <DatePicker fx:id="datePicker" promptText="Select date"
+                                prefWidth="265" style="-fx-font-size: 14px;"/>
+                </VBox>
+
+                <VBox spacing="8" HBox.hgrow="ALWAYS">
+                    <Label text="Time *" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                    <HBox spacing="10">
+                        <ComboBox fx:id="hourComboBox" promptText="HH" prefWidth="80" style="-fx-font-size: 14px;"/>
+                        <Text text=":" style="-fx-font-size: 20px; -fx-fill: #2D2D2D;"/>
+                        <ComboBox fx:id="minuteComboBox" promptText="MM" prefWidth="80" style="-fx-font-size: 14px;"/>
+                    </HBox>
+                </VBox>
+            </HBox>
+
+            <!-- Duration -->
+            <VBox spacing="8">
+                <Label text="Duration (minutes) *" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                <ComboBox fx:id="durationComboBox" prefWidth="200" style="-fx-font-size: 14px;"/>
+            </VBox>
+
+            <!-- Interview Format -->
+            <VBox spacing="8">
+                <Label text="Interview Format *" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                <HBox spacing="20">
+                    <RadioButton fx:id="virtualRadio" text="Virtual (Online)" style="-fx-font-size: 14px;"
+                                 selected="true"/>
+                    <RadioButton fx:id="inPersonRadio" text="In-Person" style="-fx-font-size: 14px;"/>
+                </HBox>
+            </VBox>
+
+            <!-- Meeting Link (for virtual) -->
+            <VBox fx:id="meetingLinkBox" spacing="8">
+                <Label text="Meeting Link" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                <TextField fx:id="meetingLinkField" promptText="https://zoom.us/j/..."
+                           style="-fx-font-size: 14px; -fx-padding: 10px;"/>
+            </VBox>
+
+            <!-- Location (for in-person) -->
+            <VBox fx:id="locationBox" spacing="8" visible="false" managed="false">
+                <Label text="Location" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                <TextField fx:id="locationField" promptText="Office address or room number"
+                           style="-fx-font-size: 14px; -fx-padding: 10px;"/>
+            </VBox>
+
+            <!-- Interview Round -->
+            <VBox spacing="8">
+                <Label text="Interview Round" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                <ComboBox fx:id="roundComboBox" prefWidth="150" style="-fx-font-size: 14px;"/>
+            </VBox>
+
+            <!-- Notes -->
+            <VBox spacing="8">
+                <Label text="Notes (Optional)" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                <TextArea fx:id="notesArea" promptText="Add any additional notes or instructions..."
+                          prefHeight="80" wrapText="true" style="-fx-font-size: 14px;"/>
+            </VBox>
+
+            <!-- Error Message -->
+            <Label fx:id="errorLabel" textFill="#dc2626" wrapText="true"
+                   style="-fx-font-size: 13px; -fx-padding: 8 0 0 0;" visible="false"/>
+
+        </VBox>
+    </ScrollPane>
+
+    <Separator/>
+
+    <!-- Action Buttons -->
+    <HBox spacing="12" alignment="CENTER_RIGHT">
+        <Button fx:id="cancelButton" text="Cancel" onAction="#handleCancel"
+                styleClass="btn-secondary" prefWidth="120"
+                style="-fx-font-size: 14px; -fx-padding: 10px 20px;"/>
+        <Button fx:id="scheduleButton" text="Schedule Interview" onAction="#handleSchedule"
+                styleClass="btn-primary" prefWidth="160"
+                style="-fx-font-size: 14px; -fx-padding: 10px 20px;"/>
+    </HBox>
+
+</VBox>

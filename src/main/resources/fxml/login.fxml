@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Text?>
+
+<AnchorPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.hirely.controllers.LoginController"
+            prefHeight="600.0" prefWidth="900.0" styleClass="root">
+
+    <!-- Background -->
+    <VBox alignment="CENTER" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0"
+          AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0"
+          style="-fx-background-color: linear-gradient(to bottom right, #F5F5F5, #FFE5D9);">
+
+        <!-- Login Card -->
+        <VBox alignment="CENTER" styleClass="card" spacing="25" maxWidth="450" prefWidth="450"
+              style="-fx-padding: 50 40 50 40;">
+
+            <!-- Logo/Header Section -->
+            <VBox alignment="CENTER" spacing="10">
+                <Text text="Hirely" styleClass="logo-text"
+                      style="-fx-font-size: 42px; -fx-font-weight: 700; -fx-fill: #2D2D2D;"/>
+                <Text text="Smart Hiring, Smarter Careers"
+                      style="-fx-font-size: 14px; -fx-fill: #6b7280;"/>
+                <Text text="Interview &amp; Evaluation Module"
+                      style="-fx-font-size: 12px; -fx-fill: #9ca3af; -fx-font-style: italic;"/>
+            </VBox>
+
+            <!-- Separator -->
+            <Separator prefWidth="350"/>
+
+            <!-- Welcome Text -->
+            <VBox alignment="CENTER" spacing="5">
+                <Text text="Welcome Back!" style="-fx-font-size: 24px; -fx-font-weight: 600; -fx-fill: #2D2D2D;"/>
+                <Text text="Please sign in to continue" style="-fx-font-size: 14px; -fx-fill: #6b7280;"/>
+            </VBox>
+
+            <!-- Login Form -->
+            <VBox spacing="20" prefWidth="370">
+                <!-- Email Field -->
+                <VBox spacing="8">
+                    <Label text="Email Address" style="-fx-font-size: 14px; -fx-font-weight: 500; -fx-text-fill: #2D2D2D;"/>
+                    <TextField fx:id="emailField" promptText="your.email@example.com"
+                               styleClass="text-field"
+                               style="-fx-font-size: 14px; -fx-padding: 12px;"/>
+                </VBox>
+
+                <!-- Password Field -->
+                <VBox spacing="8">
+                    <Label text="Password" style="-fx-font-size: 14px; -fx-font-weight: 500; -fx-text-fill: #2D2D2D;"/>
+                    <PasswordField fx:id="passwordField" promptText="Enter your password"
+                                   styleClass="text-field"
+                                   style="-fx-font-size: 14px; -fx-padding: 12px;"/>
+                </VBox>
+
+                <!-- Error Message -->
+                <Label fx:id="errorLabel" textFill="#dc2626" wrapText="true"
+                       style="-fx-font-size: 13px; -fx-padding: 8 0 0 0;" visible="false"/>
+
+                <!-- Login Button -->
+                <Button fx:id="loginButton" text="Sign In" onAction="#handleLogin"
+                        styleClass="btn-primary" prefWidth="370" prefHeight="45"
+                        style="-fx-font-size: 15px; -fx-font-weight: 600;"/>
+            </VBox>
+
+            <!-- Test Credentials Info -->
+            <VBox spacing="5" style="-fx-padding: 20 0 0 0;">
+                <Text text="Test Credentials" style="-fx-font-size: 12px; -fx-font-weight: 600; -fx-fill: #6b7280;"/>
+                <Text text="Recruiter: recruiter@company.com / password123"
+                      style="-fx-font-size: 11px; -fx-fill: #9ca3af;"/>
+                <Text text="Candidate: jane.candidate@email.com / password123"
+                      style="-fx-font-size: 11px; -fx-fill: #9ca3af;"/>
+            </VBox>
+        </VBox>
+
+        <!-- Footer -->
+        <Text text="© 2026 Hirely. All rights reserved."
+              style="-fx-font-size: 11px; -fx-fill: #9ca3af; -fx-padding: 20 0 0 0;"/>
+    </VBox>
+
+</AnchorPane>
