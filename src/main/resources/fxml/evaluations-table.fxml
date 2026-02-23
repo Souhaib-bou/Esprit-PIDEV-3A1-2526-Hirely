@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Text?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.hirely.controllers.EvaluationsTableController"
+      spacing="24" style="-fx-padding: 32px; -fx-background-color: #F5F5F5;">
+
+    <!-- Header -->
+    <HBox alignment="CENTER_LEFT" spacing="20">
+        <VBox spacing="4" HBox.hgrow="ALWAYS">
+            <Text text="Evaluations" style="-fx-font-size: 28px; -fx-font-weight: 700; -fx-fill: #2D2D2D;"/>
+            <Text text="View all completed interview evaluations" style="-fx-font-size: 14px; -fx-fill: #6b7280;"/>
+        </VBox>
+        <Button fx:id="refreshBtn" text="🔄 Refresh" onAction="#handleRefresh"
+                styleClass="btn-secondary" style="-fx-font-size: 13px; -fx-padding: 8px 16px;"/>
+    </HBox>
+
+    <!-- Evaluations Table Card -->
+    <VBox styleClass="card" spacing="16" style="-fx-padding: 24px;" VBox.vgrow="ALWAYS">
+        <HBox alignment="CENTER_LEFT">
+            <Text fx:id="resultsCountLabel" text="All Evaluations"
+                  style="-fx-font-size: 18px; -fx-font-weight: 600; -fx-fill: #2D2D2D;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+        </HBox>
+
+        <TableView fx:id="evaluationsTable" VBox.vgrow="ALWAYS" prefHeight="500">
+            <columns>
+                <TableColumn fx:id="candidateColumn" text="Candidate" prefWidth="140"/>
+                <TableColumn fx:id="jobColumn" text="Position" prefWidth="150"/>
+                <TableColumn fx:id="dateColumn" text="Interview Date" prefWidth="120"/>
+                <TableColumn fx:id="typeColumn" text="Type" prefWidth="100"/>
+                <TableColumn fx:id="roundColumn" text="Round" prefWidth="60"/>
+                <TableColumn fx:id="ratingColumn" text="Rating" prefWidth="80"/>
+                <TableColumn fx:id="recommendationColumn" text="Recommendation" prefWidth="130"/>
+                <TableColumn fx:id="hireDecisionColumn" text="Hire Decision" prefWidth="110"/>
+                <TableColumn fx:id="evaluatedDateColumn" text="Evaluated Date" prefWidth="120"/>
+                <TableColumn fx:id="actionsColumn" text="Actions" prefWidth="120"/>
+            </columns>
+            <placeholder>
+                <VBox alignment="CENTER" spacing="8" style="-fx-padding: 40px;">
+                    <Text text="📋" style="-fx-font-size: 48px;"/>
+                    <Text text="No evaluations found" style="-fx-font-size: 16px; -fx-fill: #6b7280;"/>
+                    <Text text="Complete interviews to add evaluations" style="-fx-font-size: 14px; -fx-fill: #9ca3af;"/>
+                </VBox>
+            </placeholder>
+        </TableView>
+
+        <!-- Summary Footer -->
+        <HBox spacing="20" style="-fx-padding: 12px 0 0 0;">
+            <Text fx:id="totalLabel" text="Total: 0" style="-fx-font-size: 13px; -fx-fill: #6b7280;"/>
+            <Separator orientation="VERTICAL" prefHeight="15"/>
+            <Text fx:id="recommendedLabel" text="Recommended: 0" style="-fx-font-size: 13px; -fx-fill: #16a34a;"/>
+            <Text fx:id="rejectedLabel" text="Rejected: 0" style="-fx-font-size: 13px; -fx-fill: #dc2626;"/>
+            <Text fx:id="onHoldLabel" text="On Hold: 0" style="-fx-font-size: 13px; -fx-fill: #eab308;"/>
+        </HBox>
+    </VBox>
+
+</VBox>
+

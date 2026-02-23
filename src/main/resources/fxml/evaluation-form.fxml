@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Text?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.hirely.controllers.EvaluationFormController"
+      prefWidth="700" spacing="20" style="-fx-padding: 24px; -fx-background-color: white;">
+
+    <!-- Header -->
+    <VBox spacing="8">
+        <Text text="Interview Evaluation" style="-fx-font-size: 24px; -fx-font-weight: 700; -fx-fill: #2D2D2D;"/>
+        <Text fx:id="interviewInfoLabel" text="Evaluate candidate performance"
+              style="-fx-font-size: 14px; -fx-fill: #6b7280;"/>
+    </VBox>
+
+    <Separator/>
+
+    <!-- Form -->
+    <ScrollPane fitToWidth="true" prefHeight="500" style="-fx-background-color: transparent;">
+        <VBox spacing="24" style="-fx-padding: 8px 12px 8px 0;">
+
+            <!-- Evaluation Criteria Scores -->
+            <VBox spacing="16">
+                <Text text="⭐ Evaluation Criteria" style="-fx-font-size: 18px; -fx-font-weight: 600; -fx-fill: #2D2D2D;"/>
+                <Text text="Rate the candidate on each criterion (1-5 stars)" style="-fx-font-size: 13px; -fx-fill: #6b7280;"/>
+
+                <VBox fx:id="criteriaContainer" spacing="20"/>
+            </VBox>
+
+            <Separator/>
+
+            <!-- Overall Assessment -->
+            <VBox spacing="16">
+                <Text text="📊 Overall Assessment" style="-fx-font-size: 18px; -fx-font-weight: 600; -fx-fill: #2D2D2D;"/>
+
+                <!-- Overall Rating (auto-calculated) -->
+                <VBox spacing="8">
+                    <Label text="Overall Rating" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                    <HBox spacing="12" alignment="CENTER_LEFT">
+                        <Text fx:id="overallRatingLabel" text="0.00" style="-fx-font-size: 32px; -fx-font-weight: 700; -fx-fill: #FF8C42;"/>
+                        <Text text="/ 5.0" style="-fx-font-size: 18px; -fx-fill: #6b7280;"/>
+                        <Text text="(Calculated from weighted scores)" style="-fx-font-size: 12px; -fx-fill: #9ca3af;"/>
+                    </HBox>
+                </VBox>
+
+                <!-- Recommendation -->
+                <VBox spacing="8">
+                    <Label text="Recommendation *" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                    <HBox spacing="12">
+                        <RadioButton fx:id="stronglyRecommendRadio" text="Strongly Recommend" style="-fx-font-size: 13px;"/>
+                        <RadioButton fx:id="recommendRadio" text="Recommend" style="-fx-font-size: 13px;"/>
+                        <RadioButton fx:id="neutralRadio" text="Neutral" style="-fx-font-size: 13px;"/>
+                        <RadioButton fx:id="notRecommendRadio" text="Not Recommend" style="-fx-font-size: 13px;"/>
+                    </HBox>
+                </VBox>
+
+                <!-- Strengths -->
+                <VBox spacing="8">
+                    <Label text="Strengths" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                    <TextArea fx:id="strengthsArea" promptText="What did the candidate do well?"
+                              prefHeight="80" wrapText="true" style="-fx-font-size: 13px;"/>
+                </VBox>
+
+                <!-- Weaknesses -->
+                <VBox spacing="8">
+                    <Label text="Areas for Improvement" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                    <TextArea fx:id="weaknessesArea" promptText="What areas need development?"
+                              prefHeight="80" wrapText="true" style="-fx-font-size: 13px;"/>
+                </VBox>
+
+                <!-- General Comments -->
+                <VBox spacing="8">
+                    <Label text="General Comments" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                    <TextArea fx:id="commentsArea" promptText="Additional observations..."
+                              prefHeight="80" wrapText="true" style="-fx-font-size: 13px;"/>
+                </VBox>
+            </VBox>
+
+            <Separator/>
+
+            <!-- Hire Decision -->
+            <VBox spacing="16">
+                <Text text="✅ Hiring Decision" style="-fx-font-size: 18px; -fx-font-weight: 600; -fx-fill: #2D2D2D;"/>
+
+                <VBox spacing="8">
+                    <Label text="Decision *" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                    <HBox spacing="12">
+                        <RadioButton fx:id="hireRadio" text="✅ Hire" style="-fx-font-size: 13px; -fx-text-fill: #16a34a;"/>
+                        <RadioButton fx:id="noHireRadio" text="❌ No Hire" style="-fx-font-size: 13px; -fx-text-fill: #dc2626;"/>
+                        <RadioButton fx:id="maybeRadio" text="🤔 Maybe" style="-fx-font-size: 13px; -fx-text-fill: #eab308;"/>
+                        <RadioButton fx:id="pendingRadio" text="⏳ Pending" style="-fx-font-size: 13px;" selected="true"/>
+                    </HBox>
+                </VBox>
+
+                <!-- Next Steps -->
+                <VBox spacing="8">
+                    <Label text="Next Steps" style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-text-fill: #2D2D2D;"/>
+                    <TextArea fx:id="nextStepsArea" promptText="What should happen next? (e.g., Schedule follow-up, Send offer, etc.)"
+                              prefHeight="70" wrapText="true" style="-fx-font-size: 13px;"/>
+                </VBox>
+            </VBox>
+
+            <!-- Error Message -->
+            <Label fx:id="errorLabel" textFill="#dc2626" wrapText="true"
+                   style="-fx-font-size: 13px; -fx-padding: 8 0 0 0;" visible="false"/>
+
+        </VBox>
+    </ScrollPane>
+
+    <Separator/>
+
+    <!-- Action Buttons -->
+    <HBox spacing="12" alignment="CENTER_RIGHT">
+        <Button fx:id="cancelButton" text="Cancel" onAction="#handleCancel"
+                styleClass="btn-secondary" prefWidth="120"
+                style="-fx-font-size: 14px; -fx-padding: 10px 20px;"/>
+        <Button fx:id="submitButton" text="Submit Evaluation" onAction="#handleSubmit"
+                styleClass="btn-primary" prefWidth="160"
+                style="-fx-font-size: 14px; -fx-padding: 10px 20px;"/>
+    </HBox>
+
+</VBox>

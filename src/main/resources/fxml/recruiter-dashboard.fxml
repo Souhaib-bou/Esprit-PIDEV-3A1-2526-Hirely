@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Text?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.hirely.controllers.RecruiterDashboardController"
+            prefHeight="700.0" prefWidth="1200.0">
+
+    <!-- TOP: Header -->
+    <top>
+        <HBox styleClass="header" alignment="CENTER_LEFT" spacing="20"
+              style="-fx-padding: 16px 24px; -fx-background-color: white; -fx-border-color: #E5E7EB; -fx-border-width: 0 0 1 0;">
+
+            <!-- Logo -->
+            <Text text="Hirely" styleClass="logo-text"
+                  style="-fx-font-size: 24px; -fx-font-weight: 700; -fx-fill: #2D2D2D;"/>
+
+            <Region HBox.hgrow="ALWAYS"/>
+
+            <!-- User Info -->
+            <VBox alignment="CENTER_RIGHT" spacing="2">
+                <Text fx:id="userNameLabel" text="Recruiter Name"
+                      style="-fx-font-size: 14px; -fx-font-weight: 600; -fx-fill: #2D2D2D;"/>
+                <Text fx:id="userEmailLabel" text="recruiter@company.com"
+                      style="-fx-font-size: 12px; -fx-fill: #6b7280;"/>
+            </VBox>
+
+            <!-- Logout Button -->
+            <Button fx:id="logoutButton" text="Logout" onAction="#handleLogout"
+                    styleClass="btn-secondary"
+                    style="-fx-font-size: 13px; -fx-padding: 8px 16px;"/>
+        </HBox>
+    </top>
+
+    <!-- LEFT: Sidebar Navigation -->
+    <left>
+        <VBox styleClass="sidebar" spacing="8" prefWidth="220"
+              style="-fx-background-color: #F9FAFB; -fx-padding: 20px 16px; -fx-border-color: #E5E7EB; -fx-border-width: 0 1 0 0;">
+
+            <Text text="MENU" style="-fx-font-size: 12px; -fx-font-weight: 600; -fx-fill: #6b7280; -fx-padding: 8px 12px;"/>
+
+            <Button fx:id="dashboardBtn" text="📊 Dashboard" onAction="#showDashboard"
+                    prefWidth="190" styleClass="menu-button-active"
+                    style="-fx-background-color: #FFE5D9; -fx-text-fill: #FF8C42; -fx-font-size: 14px; -fx-font-weight: 600; -fx-padding: 12px 16px; -fx-background-radius: 8px; -fx-alignment: CENTER_LEFT;"/>
+
+            <Button fx:id="interviewsBtn" text="📅 Interviews" onAction="#showInterviews"
+                    prefWidth="190" styleClass="menu-button"
+                    style="-fx-background-color: transparent; -fx-text-fill: #2D2D2D; -fx-font-size: 14px; -fx-padding: 12px 16px; -fx-background-radius: 8px; -fx-alignment: CENTER_LEFT;"/>
+
+            <Button fx:id="evaluationsBtn" text="⭐ Evaluations" onAction="#showEvaluations"
+                    prefWidth="190" styleClass="menu-button"
+                    style="-fx-background-color: transparent; -fx-text-fill: #2D2D2D; -fx-font-size: 14px; -fx-padding: 12px 16px; -fx-background-radius: 8px; -fx-alignment: CENTER_LEFT;"/>
+
+            <Separator style="-fx-padding: 12px 0;"/>
+
+            <Text text="QUICK ACTIONS" style="-fx-font-size: 12px; -fx-font-weight: 600; -fx-fill: #6b7280; -fx-padding: 8px 12px;"/>
+
+            <Button fx:id="scheduleBtn" text="➕ Schedule Interview" onAction="#handleScheduleInterview"
+                    prefWidth="190" styleClass="btn-primary"
+                    style="-fx-font-size: 13px; -fx-padding: 10px 16px;"/>
+        </VBox>
+    </left>
+
+    <!-- CENTER: Main Content -->
+    <center>
+        <ScrollPane fitToWidth="true" fitToHeight="true" style="-fx-background-color: #F5F5F5;">
+            <VBox spacing="24" style="-fx-padding: 32px;">
+
+                <!-- Page Title -->
+                <VBox spacing="4">
+                    <Text text="Dashboard" style="-fx-font-size: 28px; -fx-font-weight: 700; -fx-fill: #2D2D2D;"/>
+                    <Text text="Overview of your recruitment activities" style="-fx-font-size: 14px; -fx-fill: #6b7280;"/>
+                </VBox>
+
+                <!-- Statistics Cards -->
+                <HBox spacing="20">
+                    <!-- Card 1: Total Interviews -->
+                    <VBox styleClass="card" spacing="12" prefWidth="250" prefHeight="120"
+                          style="-fx-padding: 20px; -fx-background-color: white; -fx-background-radius: 12px;">
+                        <Text text="Total Interviews" style="-fx-font-size: 14px; -fx-fill: #6b7280;"/>
+                        <Text fx:id="totalInterviewsLabel" text="0" style="-fx-font-size: 36px; -fx-font-weight: 700; -fx-fill: #2D2D2D;"/>
+                        <Text text="All time" style="-fx-font-size: 12px; -fx-fill: #9ca3af;"/>
+                    </VBox>
+
+                    <!-- Card 2: Today's Interviews -->
+                    <VBox styleClass="card" spacing="12" prefWidth="250" prefHeight="120"
+                          style="-fx-padding: 20px; -fx-background-color: white; -fx-background-radius: 12px;">
+                        <Text text="Today's Interviews" style="-fx-font-size: 14px; -fx-fill: #6b7280;"/>
+                        <Text fx:id="todayInterviewsLabel" text="0" style="-fx-font-size: 36px; -fx-font-weight: 700; -fx-fill: #FF8C42;"/>
+                        <Text text="Scheduled for today" style="-fx-font-size: 12px; -fx-fill: #9ca3af;"/>
+                    </VBox>
+
+                    <!-- Card 3: Pending Evaluations -->
+                    <VBox styleClass="card" spacing="12" prefWidth="250" prefHeight="120"
+                          style="-fx-padding: 20px; -fx-background-color: white; -fx-background-radius: 12px;">
+                        <Text text="Pending Evaluations" style="-fx-font-size: 14px; -fx-fill: #6b7280;"/>
+                        <Text fx:id="pendingEvaluationsLabel" text="0" style="-fx-font-size: 36px; -fx-font-weight: 700; -fx-fill: #dc2626;"/>
+                        <Text text="Awaiting feedback" style="-fx-font-size: 12px; -fx-fill: #9ca3af;"/>
+                    </VBox>
+                </HBox>
+
+                <!-- Upcoming Interviews Table -->
+                <VBox styleClass="card" spacing="16" style="-fx-padding: 24px;">
+                    <HBox alignment="CENTER_LEFT">
+                        <Text text="Upcoming Interviews" style="-fx-font-size: 20px; -fx-font-weight: 600; -fx-fill: #2D2D2D;"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button fx:id="refreshBtn" text="🔄 Refresh" onAction="#handleRefresh"
+                                styleClass="btn-secondary" style="-fx-font-size: 13px; -fx-padding: 8px 16px;"/>
+                    </HBox>
+
+                    <TableView fx:id="interviewsTable" prefHeight="350">
+                        <columns>
+                            <TableColumn fx:id="dateColumn" text="Date &amp; Time" prefWidth="150"/>
+                            <TableColumn fx:id="candidateColumn" text="Candidate" prefWidth="120"/>
+                            <TableColumn fx:id="jobColumn" text="Position" prefWidth="200"/>
+                            <TableColumn fx:id="typeColumn" text="Type" prefWidth="150"/>
+                            <TableColumn fx:id="statusColumn" text="Status" prefWidth="120"/>
+                            <TableColumn fx:id="locationColumn" text="Location" prefWidth="150"/>
+                            <TableColumn fx:id="actionsColumn" text="Actions" prefWidth="120"/>
+                        </columns>
+                        <placeholder>
+                            <VBox alignment="CENTER" spacing="8" style="-fx-padding: 40px;">
+                                <Text text="📅" style="-fx-font-size: 48px;"/>
+                                <Text text="No upcoming interviews" style="-fx-font-size: 16px; -fx-fill: #6b7280;"/>
+                                <Text text="Schedule your first interview to get started!" style="-fx-font-size: 14px; -fx-fill: #9ca3af;"/>
+                            </VBox>
+                        </placeholder>
+                    </TableView>
+                </VBox>
+
+            </VBox>
+        </ScrollPane>
+    </center>
+
+</BorderPane>

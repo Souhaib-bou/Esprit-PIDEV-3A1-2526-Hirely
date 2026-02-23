@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Text?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="com.hirely.controllers.InterviewListController"
+      spacing="24" style="-fx-padding: 32px; -fx-background-color: #F5F5F5;">
+
+    <!-- Header -->
+    <HBox alignment="CENTER_LEFT" spacing="20">
+        <VBox spacing="4" HBox.hgrow="ALWAYS">
+            <Text text="Interviews" style="-fx-font-size: 28px; -fx-font-weight: 700; -fx-fill: #2D2D2D;"/>
+            <Text text="Manage all your scheduled interviews" style="-fx-font-size: 14px; -fx-fill: #6b7280;"/>
+        </VBox>
+
+        <Button fx:id="scheduleNewBtn" text="➕ Schedule New" onAction="#handleScheduleNew"
+                styleClass="btn-primary" style="-fx-font-size: 14px; -fx-padding: 12px 24px;"/>
+    </HBox>
+
+    <!-- Filters Card -->
+    <VBox styleClass="card" spacing="16" style="-fx-padding: 20px;">
+        <HBox alignment="CENTER_LEFT" spacing="16">
+            <Text text="🔍 Filters" style="-fx-font-size: 16px; -fx-font-weight: 600; -fx-fill: #2D2D2D;"/>
+            <Separator orientation="VERTICAL" prefHeight="20"/>
+
+            <!-- Status Filter -->
+            <VBox spacing="4">
+                <Text text="Status" style="-fx-font-size: 12px; -fx-fill: #6b7280;"/>
+                <ComboBox fx:id="statusFilterComboBox" promptText="All Statuses"
+                          prefWidth="150" style="-fx-font-size: 13px;"/>
+            </VBox>
+
+            <!-- Type Filter -->
+            <VBox spacing="4">
+                <Text text="Type" style="-fx-font-size: 12px; -fx-fill: #6b7280;"/>
+                <ComboBox fx:id="typeFilterComboBox" promptText="All Types"
+                          prefWidth="150" style="-fx-font-size: 13px;"/>
+            </VBox>
+
+            <!-- Date Range -->
+            <VBox spacing="4">
+                <Text text="Date Range" style="-fx-font-size: 12px; -fx-fill: #6b7280;"/>
+                <ComboBox fx:id="dateRangeComboBox"
+                          prefWidth="150" style="-fx-font-size: 13px;"/>
+            </VBox>
+
+            <Region HBox.hgrow="ALWAYS"/>
+
+            <!-- Action Buttons -->
+            <Button fx:id="applyFiltersBtn" text="Apply" onAction="#handleApplyFilters"
+                    styleClass="btn-primary" style="-fx-font-size: 13px; -fx-padding: 8px 20px;"/>
+            <Button fx:id="clearFiltersBtn" text="Clear" onAction="#handleClearFilters"
+                    styleClass="btn-secondary" style="-fx-font-size: 13px; -fx-padding: 8px 20px;"/>
+        </HBox>
+    </VBox>
+
+    <!-- Interviews Table Card -->
+    <VBox styleClass="card" spacing="16" style="-fx-padding: 24px;" VBox.vgrow="ALWAYS">
+        <HBox alignment="CENTER_LEFT">
+            <Text fx:id="resultsCountLabel" text="All Interviews"
+                  style="-fx-font-size: 18px; -fx-font-weight: 600; -fx-fill: #2D2D2D;"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="refreshBtn" text="🔄 Refresh" onAction="#handleRefresh"
+                    styleClass="btn-secondary" style="-fx-font-size: 13px; -fx-padding: 8px 16px;"/>
+        </HBox>
+
+        <TableView fx:id="interviewsTable" VBox.vgrow="ALWAYS" prefHeight="400">
+            <columns>
+                <TableColumn fx:id="idColumn" text="ID" prefWidth="35"/>
+                <TableColumn fx:id="dateColumn" text="Date" prefWidth="100"/>
+                <TableColumn fx:id="timeColumn" text="Time" prefWidth="80"/>
+                <TableColumn fx:id="candidateColumn" text="Candidate" prefWidth="120"/>
+                <TableColumn fx:id="jobColumn" text="Position" prefWidth="180"/>
+                <TableColumn fx:id="typeColumn" text="Type" prefWidth="130"/>
+                <TableColumn fx:id="statusColumn" text="Status" prefWidth="110"/>
+                <TableColumn fx:id="roundColumn" text="Round" prefWidth="60"/>
+                <TableColumn fx:id="actionsColumn" text="Actions" prefWidth="180"/>
+            </columns>
+            <placeholder>
+                <VBox alignment="CENTER" spacing="8" style="-fx-padding: 40px;">
+                    <Text text="📅" style="-fx-font-size: 48px;"/>
+                    <Text text="No interviews found" style="-fx-font-size: 16px; -fx-fill: #6b7280;"/>
+                    <Text text="Schedule your first interview or adjust filters" style="-fx-font-size: 14px; -fx-fill: #9ca3af;"/>
+                </VBox>
+            </placeholder>
+        </TableView>
+
+        <!-- Summary Footer -->
+        <HBox spacing="20" style="-fx-padding: 12px 0 0 0;">
+            <Text fx:id="totalLabel" text="Total: 0" style="-fx-font-size: 13px; -fx-fill: #6b7280;"/>
+            <Separator orientation="VERTICAL" prefHeight="15"/>
+            <Text fx:id="scheduledLabel" text="Scheduled: 0" style="-fx-font-size: 13px; -fx-fill: #eab308;"/>
+            <Text fx:id="confirmedLabel" text="Confirmed: 0" style="-fx-font-size: 13px; -fx-fill: #16a34a;"/>
+            <Text fx:id="completedLabel" text="Completed: 0" style="-fx-font-size: 13px; -fx-fill: #2563eb;"/>
+            <Text fx:id="cancelledLabel" text="Cancelled: 0" style="-fx-font-size: 13px; -fx-fill: #dc2626;"/>
+        </HBox>
+    </VBox>
+
+</VBox>
