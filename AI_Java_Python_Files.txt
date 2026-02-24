@@ -1,0 +1,1117 @@
+﻿========== src/main/java/service/ModerationEngine.java ==========
+package service;
+
+import model.ModerationReport;
+import util.PerspectiveClient;
+import util.PythonScoreClient;
+import util.Secrets;
+
+import java.net.ConnectException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public final class ModerationEngine {
+    public enum ContentType {
+        POST,
+        COMMENT
+    }
+
+    private static final String STATUS_APPROVED = "APPROVED";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_REJECTED = "REJECTED";
+
+    private final PerspectiveClient perspectiveClient;
+    private final PythonScoreClient pythonScoreClient;
+    private final ExecutorService executor;
+
+    public ModerationEngine() {
+        this(new PerspectiveClient(), new PythonScoreClient());
+    }
+
+    public ModerationEngine(PerspectiveClient perspectiveClient, PythonScoreClient pythonScoreClient) {
+        this.perspectiveClient = perspectiveClient;
+        this.pythonScoreClient = pythonScoreClient;
+        this.executor = Executors.newFixedThreadPool(4);
+    }
+
+    public CompletableFuture<ModerationReport> analyzeAsync(ContentType type, String text) {
+        String safeText = text == null ? "" : text.trim();
+        long startNs = System.nanoTime();
+        String perspectiveKey = readPerspectiveApiKey();
+        String wireType = toWireType(type);
+        String contentKey = cacheKey(safeText, type);
+
+        CompletableFuture<PerspectiveOutcome> perspectiveFuture =
+                CompletableFuture.supplyAsync(() -> callPerspective(safeText, perspectiveKey), executor)
+                        .handle(PerspectiveOutcome::from);
+        CompletableFuture<ScoreOutcome> scoreFuture =
+                CompletableFuture.supplyAsync(() -> callScore(safeText, wireType, contentKey), executor)
+                        .handle(ScoreOutcome::from);
+
+        return perspectiveFuture.thenCombine(scoreFuture, (perspective, score) ->
+                buildReport(type, startNs, perspective, score));
+    }
+
+    public void shutdown() {
+        executor.shutdown();
+    }
+
+    private ModerationReport buildReport(ContentType type, long startNs,
+            PerspectiveOutcome perspectiveOutcome, ScoreOutcome scoreOutcome) {
+        ModerationReport report = new ModerationReport();
+        List<String> reasons = new ArrayList<>();
+        report.setReasons(reasons);
+        report.setCategory("General");
+
+        boolean fallback = false;
+
+        if (perspectiveOutcome.failed()) {
+            fallback = true;
+            report.setToxicity(0.50);
+            report.setPerspectiveRaw("Perspective unavailable");
+            if ("Missing PERSPECTIVE_API_KEY".equals(perspectiveOutcome.errorDetail())) {
+                reasons.add("Missing PERSPECTIVE_API_KEY");
+            } else {
+                reasons.add("Perspective API unavailable: " + perspectiveOutcome.errorDetail());
+            }
+        } else {
+            PerspectiveClient.PerspectiveResult perspective = perspectiveOutcome.result();
+            report.setToxicity(perspective.getToxicity());
+            report.setPerspectiveRaw(perspective.getRaw());
+            report.setPerspectiveLatencyMs(perspective.getLatencyMs());
+        }
+
+        if (scoreOutcome.failed()) {
+            fallback = true;
+            report.setRelevance(0.50);
+            report.setCategory("General");
+            report.setQualityScore(0.50);
+            report.setDuplicateSimilarity(0.00);
+            report.setPythonRaw("Python services unavailable");
+            reasons.add("Python scoring service unavailable: " + scoreOutcome.errorDetail());
+        } else {
+            PythonScoreClient.ScoreResult score = scoreOutcome.result();
+            report.setRelevance(score.getRelevance());
+            report.setCategory(score.getCategory());
+            report.setQualityScore(score.getQuality());
+            report.setDuplicateSimilarity(score.getDuplicateSimilarity());
+            report.setPythonRaw("score=" + score.getRaw());
+            report.setPythonLatencyMs(score.getLatencyMs());
+            reasons.addAll(score.getRelevanceReasons());
+            reasons.addAll(score.getQualityReasons());
+            reasons.addAll(score.getDuplicateReasons());
+        }
+
+        if (fallback) {
+            report.setDecision(STATUS_PENDING);
+            reasons.add("AI unavailable - sent for manual review");
+            report.setFallbackUsed(true);
+        } else {
+            report.setDecision(decideWithPolicy(type, report, reasons));
+            report.setFallbackUsed(false);
+        }
+
+        report.setTotalLatencyMs((System.nanoTime() - startNs) / 1_000_000);
+        return report;
+    }
+
+    private PerspectiveClient.PerspectiveResult callPerspective(String text, String apiKey) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new CompletionException(new IllegalStateException("Missing PERSPECTIVE_API_KEY"));
+        }
+        try {
+            return perspectiveClient.analyze(text, apiKey);
+        } catch (Exception ex) {
+            throw new CompletionException(ex);
+        }
+    }
+
+    private PythonScoreClient.ScoreResult callScore(String text, String type, String contentKey) {
+        try {
+            return pythonScoreClient.score(text, type, contentKey);
+        } catch (Exception ex) {
+            throw new CompletionException(ex);
+        }
+    }
+
+    private String decideWithPolicy(ContentType type, ModerationReport report, List<String> reasons) {
+        double toxicity = report.getToxicity();
+        double relevance = report.getRelevance();
+        double quality = report.getQualityScore();
+        double duplicate = report.getDuplicateSimilarity();
+
+        if (type == ContentType.POST) {
+            if (toxicity >= 0.80) {
+                reasons.add("High toxicity score");
+                return STATUS_REJECTED;
+            }
+            if (toxicity <= 0.20 && relevance >= 0.70 && quality >= 0.55 && duplicate <= 0.90) {
+                reasons.add("Passed post auto-approval policy");
+                return STATUS_APPROVED;
+            }
+            if (relevance < 0.35) {
+                reasons.add("Low career relevance");
+            }
+            return STATUS_PENDING;
+        }
+
+        if (toxicity >= 0.80) {
+            reasons.add("High toxicity score");
+            return STATUS_REJECTED;
+        }
+        if (toxicity <= 0.25 && relevance >= 0.45 && quality >= 0.40 && duplicate <= 0.93) {
+            reasons.add("Passed comment auto-approval policy");
+            return STATUS_APPROVED;
+        }
+        return STATUS_PENDING;
+    }
+
+    private String readPerspectiveApiKey() {
+        // Dev constant (replace YOUR_KEY_HERE locally).
+        if (Secrets.PERSPECTIVE_API_KEY == null) {
+            return "";
+        }
+        String key = Secrets.PERSPECTIVE_API_KEY.trim();
+        if (key.length() >= 2) {
+            if ((key.startsWith("\"") && key.endsWith("\"")) || (key.startsWith("'") && key.endsWith("'"))) {
+                key = key.substring(1, key.length() - 1).trim();
+            }
+        }
+        if ("YOUR_KEY_HERE".equalsIgnoreCase(key)) {
+            return "";
+        }
+        return key;
+    }
+
+    private String toWireType(ContentType type) {
+        return type == null ? "post" : type.name().toLowerCase(Locale.ROOT);
+    }
+
+    private String cacheKey(String text, ContentType type) {
+        String normalizedType = type == null ? "post" : type.name().toLowerCase(Locale.ROOT);
+        return normalizedType + ":" + Integer.toHexString(text.hashCode()) + ":" + System.currentTimeMillis();
+    }
+
+    private static String safeErrorDetail(Throwable error) {
+        Throwable root = unwrap(error);
+        if (root instanceof ConnectException) {
+            return "ConnectException (cannot reach Python AI service; verify PY_AI_URL/service status)";
+        }
+        String detail = root == null ? "" : root.getMessage();
+        if (detail == null || detail.isBlank()) {
+            detail = root == null ? "Unknown error" : root.getClass().getSimpleName();
+        }
+        detail = detail.replace('\n', ' ').replace('\r', ' ').trim();
+        if (detail.contains("Missing PERSPECTIVE_API_KEY")) {
+            return "Missing PERSPECTIVE_API_KEY";
+        }
+        if (detail.length() > 120) {
+            return detail.substring(0, 120) + "...";
+        }
+        return detail;
+    }
+
+    private static Throwable unwrap(Throwable error) {
+        Throwable current = error;
+        while (current instanceof CompletionException && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
+    private static final class PerspectiveOutcome {
+        private final PerspectiveClient.PerspectiveResult result;
+        private final String errorDetail;
+
+        private PerspectiveOutcome(PerspectiveClient.PerspectiveResult result, String errorDetail) {
+            this.result = result;
+            this.errorDetail = errorDetail;
+        }
+
+        private static PerspectiveOutcome from(PerspectiveClient.PerspectiveResult result, Throwable error) {
+            if (error == null) {
+                return new PerspectiveOutcome(result, "");
+            }
+            return new PerspectiveOutcome(null, safeErrorDetail(error));
+        }
+
+        private boolean failed() {
+            return result == null;
+        }
+
+        private PerspectiveClient.PerspectiveResult result() {
+            return result;
+        }
+
+        private String errorDetail() {
+            return errorDetail;
+        }
+    }
+
+    private static final class ScoreOutcome {
+        private final PythonScoreClient.ScoreResult result;
+        private final String errorDetail;
+
+        private ScoreOutcome(PythonScoreClient.ScoreResult result, String errorDetail) {
+            this.result = result;
+            this.errorDetail = errorDetail;
+        }
+
+        private static ScoreOutcome from(PythonScoreClient.ScoreResult result, Throwable error) {
+            if (error == null) {
+                return new ScoreOutcome(result, "");
+            }
+            return new ScoreOutcome(null, safeErrorDetail(error));
+        }
+
+        private boolean failed() {
+            return result == null;
+        }
+
+        private PythonScoreClient.ScoreResult result() {
+            return result;
+        }
+
+        private String errorDetail() {
+            return errorDetail;
+        }
+    }
+}
+
+========== src/main/java/util/PerspectiveClient.java ==========
+package util;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+
+public final class PerspectiveClient {
+    private static final String ENDPOINT =
+            "https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=";
+
+    private final HttpClient client;
+
+    public PerspectiveClient() {
+        this.client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
+    }
+
+    public double analyzeToxicity(String text, String apiKey) throws Exception {
+        return analyze(text, apiKey).getToxicity();
+    }
+
+    public PerspectiveResult analyze(String text, String apiKey) throws Exception {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalArgumentException("Missing Perspective API key");
+        }
+
+        String payload = buildPayload(text);
+        DebugLog.info("Perspective", "Sending analyze request, textLen=" + safeLength(text)
+                + ", keyLen=" + apiKey.length()
+                + ", key=" + maskKey(apiKey));
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(ENDPOINT + apiKey))
+                .timeout(Duration.ofSeconds(5))
+                .header("Content-Type", "application/json")
+                .header("User-Agent", "HirelyForum/1.0 (JavaFX)")
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build();
+
+        long startNs = System.nanoTime();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        long latencyMs = elapsedMs(startNs);
+        DebugLog.info("Perspective", "Response status=" + response.statusCode()
+                + ", bodyLen=" + safeLength(response.body()));
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            DebugLog.info("Perspective", "Non-success response body preview: " + preview(response.body()));
+            throw new IOException("Perspective request failed (" + response.statusCode() + ")");
+        }
+
+        double toxicity = parseToxicity(response.body());
+        DebugLog.info("Perspective", "Parsed TOXICITY summaryScore.value=" + toxicity);
+        return new PerspectiveResult(toxicity, trimRaw(response.body()), latencyMs);
+    }
+
+    private String buildPayload(String text) {
+        JsonObject root = new JsonObject();
+        JsonObject comment = new JsonObject();
+        comment.addProperty("text", text == null ? "" : text);
+        root.add("comment", comment);
+
+        JsonArray languages = new JsonArray();
+        languages.add("en");
+        root.add("languages", languages);
+
+        JsonObject requested = new JsonObject();
+        requested.add("TOXICITY", new JsonObject());
+        root.add("requestedAttributes", requested);
+
+        return root.toString();
+    }
+
+    private double parseToxicity(String body) throws IOException {
+        try {
+            JsonObject root = JsonParser.parseString(body).getAsJsonObject();
+            JsonObject attributeScores = root.getAsJsonObject("attributeScores");
+            JsonObject toxicity = attributeScores == null ? null : attributeScores.getAsJsonObject("TOXICITY");
+            JsonObject summary = toxicity == null ? null : toxicity.getAsJsonObject("summaryScore");
+            if (summary == null || !summary.has("value")) {
+                throw new IOException("Perspective response missing TOXICITY summaryScore");
+            }
+
+            double value = summary.get("value").getAsDouble();
+            if (value < 0) {
+                return 0;
+            }
+            if (value > 1) {
+                return 1;
+            }
+            return value;
+        } catch (RuntimeException ex) {
+            DebugLog.error("Perspective", "Failed to parse response body: " + preview(body), ex);
+            throw new IOException("Failed to parse Perspective response", ex);
+        }
+    }
+
+    private String maskKey(String key) {
+        if (key == null || key.isBlank()) {
+            return "<empty>";
+        }
+        if (key.length() <= 8) {
+            return "****";
+        }
+        return key.substring(0, 4) + "..." + key.substring(key.length() - 4);
+    }
+
+    private int safeLength(String value) {
+        return value == null ? 0 : value.length();
+    }
+
+    private String preview(String value) {
+        if (value == null) {
+            return "<null>";
+        }
+        String compact = value.replace('\n', ' ').replace('\r', ' ');
+        if (compact.length() <= 220) {
+            return compact;
+        }
+        return compact.substring(0, 220) + "...";
+    }
+
+    private String trimRaw(String value) {
+        if (value == null) {
+            return "";
+        }
+        String compact = value.replace('\n', ' ').replace('\r', ' ');
+        if (compact.length() <= 2000) {
+            return compact;
+        }
+        return compact.substring(0, 2000) + "...";
+    }
+
+    private long elapsedMs(long startNs) {
+        return (System.nanoTime() - startNs) / 1_000_000;
+    }
+
+    public static final class PerspectiveResult {
+        private final double toxicity;
+        private final String raw;
+        private final long latencyMs;
+
+        public PerspectiveResult(double toxicity, String raw, long latencyMs) {
+            this.toxicity = toxicity;
+            this.raw = raw;
+            this.latencyMs = latencyMs;
+        }
+
+        public double getToxicity() {
+            return toxicity;
+        }
+
+        public String getRaw() {
+            return raw;
+        }
+
+        public long getLatencyMs() {
+            return latencyMs;
+        }
+    }
+}
+
+========== src/main/java/util/PythonScoreClient.java ==========
+package util;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+public final class PythonScoreClient {
+    private static final String DEFAULT_BASE_URL = "http://127.0.0.1:8008";
+
+    private final HttpClient client;
+    private final String baseUrl;
+
+    public PythonScoreClient() {
+        this(resolveBaseUrl());
+    }
+
+    public PythonScoreClient(String baseUrl) {
+        this.client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
+        this.baseUrl = sanitizeBaseUrl(baseUrl);
+    }
+
+    public ScoreResult score(String text, String type) throws Exception {
+        return score(text, type, "");
+    }
+
+    public ScoreResult score(String text, String type, String contentKey) throws Exception {
+        String endpoint = baseUrl + "/score";
+        JsonObject payload = new JsonObject();
+        payload.addProperty("text", text == null ? "" : text);
+        payload.addProperty("type", normalizeType(type));
+        payload.addProperty("content_key", contentKey == null ? "" : contentKey);
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint))
+                .timeout(Duration.ofSeconds(6))
+                .header("Content-Type", "application/json")
+                .header("User-Agent", "HirelyForum/1.0 (JavaFX)")
+                .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
+                .build();
+
+        DebugLog.info("PythonAI", "POST " + endpoint + ", textLen=" + safeLength(text));
+        long startNs = System.nanoTime();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        long latencyMs = elapsedMs(startNs);
+        DebugLog.info("PythonAI", "Response status=" + response.statusCode()
+                + ", bodyLen=" + safeLength(response.body()));
+
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IOException("Python score request failed (" + response.statusCode() + "): " + preview(response.body()));
+        }
+
+        JsonObject root = JsonParser.parseString(response.body()).getAsJsonObject();
+        double relevance = readDouble(root, "relevance", 0.50);
+        String category = readString(root, "category", "General");
+        double quality = readDouble(root, "quality", 0.50);
+        double duplicateSimilarity = readDouble(root, "duplicate_similarity", 0.00);
+
+        JsonObject reasonsObj = root.has("reasons") && root.get("reasons").isJsonObject()
+                ? root.getAsJsonObject("reasons")
+                : new JsonObject();
+        List<String> relevanceReasons = readStringList(reasonsObj, "relevance");
+        List<String> qualityReasons = readStringList(reasonsObj, "quality");
+        List<String> duplicateReasons = readStringList(reasonsObj, "duplicate");
+
+        return new ScoreResult(
+                relevance,
+                category,
+                quality,
+                duplicateSimilarity,
+                relevanceReasons,
+                qualityReasons,
+                duplicateReasons,
+                trimRaw(response.body()),
+                latencyMs);
+    }
+
+    private static String normalizeType(String rawType) {
+        if (rawType == null || rawType.isBlank()) {
+            return "post";
+        }
+        String value = rawType.trim().toLowerCase(Locale.ROOT);
+        return "comment".equals(value) ? "comment" : "post";
+    }
+
+    private static String resolveBaseUrl() {
+        return Secrets.PY_AI_URL;
+    }
+
+    private static String sanitizeBaseUrl(String raw) {
+        String value = (raw == null || raw.isBlank()) ? DEFAULT_BASE_URL : raw.trim();
+        if (value.endsWith("/")) {
+            return value.substring(0, value.length() - 1);
+        }
+        return value;
+    }
+
+    private static String readString(JsonObject root, String field, String fallback) {
+        if (!root.has(field) || root.get(field).isJsonNull()) {
+            return fallback;
+        }
+        return root.get(field).getAsString();
+    }
+
+    private static double readDouble(JsonObject root, String field, double fallback) {
+        if (!root.has(field) || root.get(field).isJsonNull()) {
+            return fallback;
+        }
+        return root.get(field).getAsDouble();
+    }
+
+    private static List<String> readStringList(JsonObject root, String field) {
+        List<String> values = new ArrayList<>();
+        if (!root.has(field) || !root.get(field).isJsonArray()) {
+            return values;
+        }
+        JsonArray arr = root.getAsJsonArray(field);
+        for (JsonElement element : arr) {
+            if (element != null && !element.isJsonNull()) {
+                values.add(element.getAsString());
+            }
+        }
+        return values;
+    }
+
+    private static String trimRaw(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String compact = raw.replace('\n', ' ').replace('\r', ' ');
+        if (compact.length() <= 2000) {
+            return compact;
+        }
+        return compact.substring(0, 2000) + "...";
+    }
+
+    private static String preview(String raw) {
+        if (raw == null) {
+            return "<null>";
+        }
+        String compact = raw.replace('\n', ' ').replace('\r', ' ');
+        if (compact.length() <= 220) {
+            return compact;
+        }
+        return compact.substring(0, 220) + "...";
+    }
+
+    private static int safeLength(String raw) {
+        return raw == null ? 0 : raw.length();
+    }
+
+    private static long elapsedMs(long startNs) {
+        return (System.nanoTime() - startNs) / 1_000_000;
+    }
+
+    public static final class ScoreResult {
+        private final double relevance;
+        private final String category;
+        private final double quality;
+        private final double duplicateSimilarity;
+        private final List<String> relevanceReasons;
+        private final List<String> qualityReasons;
+        private final List<String> duplicateReasons;
+        private final String raw;
+        private final long latencyMs;
+
+        public ScoreResult(double relevance, String category, double quality, double duplicateSimilarity,
+                List<String> relevanceReasons, List<String> qualityReasons, List<String> duplicateReasons,
+                String raw, long latencyMs) {
+            this.relevance = relevance;
+            this.category = category;
+            this.quality = quality;
+            this.duplicateSimilarity = duplicateSimilarity;
+            this.relevanceReasons = relevanceReasons == null ? List.of() : List.copyOf(relevanceReasons);
+            this.qualityReasons = qualityReasons == null ? List.of() : List.copyOf(qualityReasons);
+            this.duplicateReasons = duplicateReasons == null ? List.of() : List.copyOf(duplicateReasons);
+            this.raw = raw;
+            this.latencyMs = latencyMs;
+        }
+
+        public double getRelevance() {
+            return relevance;
+        }
+
+        public String getCategory() {
+            return category;
+        }
+
+        public double getQuality() {
+            return quality;
+        }
+
+        public double getDuplicateSimilarity() {
+            return duplicateSimilarity;
+        }
+
+        public List<String> getRelevanceReasons() {
+            return relevanceReasons;
+        }
+
+        public List<String> getQualityReasons() {
+            return qualityReasons;
+        }
+
+        public List<String> getDuplicateReasons() {
+            return duplicateReasons;
+        }
+
+        public String getRaw() {
+            return raw;
+        }
+
+        public long getLatencyMs() {
+            return latencyMs;
+        }
+    }
+}
+
+========== src/main/java/util/Secrets.java ==========
+package util;
+
+/**
+ * Local dev only: replace YOUR_KEY_HERE manually.
+ * IMPORTANT: do not commit real keys to GitHub.
+ */
+public final class Secrets {
+    private Secrets() {
+    }
+
+    public static final String PERSPECTIVE_API_KEY = "AIzaSyDq07kgc6dEcSYBkDHjUQTnYS6GnQDra7k";
+    public static final String PY_AI_URL = "http://127.0.0.1:8008";
+}
+
+========== src/main/java/model/ModerationReport.java ==========
+package model;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class ModerationReport {
+    private double toxicity;
+    private double relevance;
+    private String category;
+    private double duplicateSimilarity;
+    private double qualityScore;
+    private String decision;
+    private List<String> reasons = new ArrayList<>();
+    private String perspectiveRaw;
+    private String pythonRaw;
+    private long perspectiveLatencyMs;
+    private long pythonLatencyMs;
+    private long totalLatencyMs;
+    private boolean fallbackUsed;
+
+    public double getToxicity() {
+        return toxicity;
+    }
+
+    public void setToxicity(double toxicity) {
+        this.toxicity = toxicity;
+    }
+
+    public double getRelevance() {
+        return relevance;
+    }
+
+    public void setRelevance(double relevance) {
+        this.relevance = relevance;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public double getDuplicateSimilarity() {
+        return duplicateSimilarity;
+    }
+
+    public void setDuplicateSimilarity(double duplicateSimilarity) {
+        this.duplicateSimilarity = duplicateSimilarity;
+    }
+
+    public double getQualityScore() {
+        return qualityScore;
+    }
+
+    public void setQualityScore(double qualityScore) {
+        this.qualityScore = qualityScore;
+    }
+
+    public String getDecision() {
+        return decision;
+    }
+
+    public void setDecision(String decision) {
+        this.decision = decision;
+    }
+
+    public List<String> getReasons() {
+        return reasons;
+    }
+
+    public void setReasons(List<String> reasons) {
+        this.reasons = reasons == null ? new ArrayList<>() : reasons;
+    }
+
+    public String getPerspectiveRaw() {
+        return perspectiveRaw;
+    }
+
+    public void setPerspectiveRaw(String perspectiveRaw) {
+        this.perspectiveRaw = perspectiveRaw;
+    }
+
+    public String getPythonRaw() {
+        return pythonRaw;
+    }
+
+    public void setPythonRaw(String pythonRaw) {
+        this.pythonRaw = pythonRaw;
+    }
+
+    public long getPerspectiveLatencyMs() {
+        return perspectiveLatencyMs;
+    }
+
+    public void setPerspectiveLatencyMs(long perspectiveLatencyMs) {
+        this.perspectiveLatencyMs = perspectiveLatencyMs;
+    }
+
+    public long getPythonLatencyMs() {
+        return pythonLatencyMs;
+    }
+
+    public void setPythonLatencyMs(long pythonLatencyMs) {
+        this.pythonLatencyMs = pythonLatencyMs;
+    }
+
+    public long getTotalLatencyMs() {
+        return totalLatencyMs;
+    }
+
+    public void setTotalLatencyMs(long totalLatencyMs) {
+        this.totalLatencyMs = totalLatencyMs;
+    }
+
+    public boolean isFallbackUsed() {
+        return fallbackUsed;
+    }
+
+    public void setFallbackUsed(boolean fallbackUsed) {
+        this.fallbackUsed = fallbackUsed;
+    }
+}
+
+========== ai_service/app.py ==========
+from __future__ import annotations
+
+import hashlib
+from functools import lru_cache
+import re
+from collections import Counter, OrderedDict
+from threading import Lock
+from typing import Literal
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from sentence_transformers import SentenceTransformer
+
+
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+app = FastAPI(title="Hirely AI Service", version="1.0.0")
+
+CAREER_ANCHORS = {
+    "Internship": "internship opportunity",
+    "Job Offer": "job opening hiring",
+    "Interview": "interview preparation",
+    "Resume": "resume review cv feedback",
+    "Salary": "salary negotiation compensation",
+    "Career Advice": "career advice and growth",
+    "Applications": "application tips for jobs",
+}
+
+OFF_TOPIC_ANCHORS = {
+    "Gaming": "gaming and video games",
+    "Memes": "internet memes and jokes",
+    "Politics": "political debate and elections",
+    "Dating": "dating and relationships",
+    "Random Chat": "random casual chat",
+}
+
+LINK_PATTERN = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
+REPEATED_CHAR_PATTERN = re.compile(r"(.)\1{3,}")
+REPEATED_PUNCT_PATTERN = re.compile(r"[!?.,]{4,}")
+NON_ALNUM_PATTERN = re.compile(r"[^a-z0-9]")
+MAX_POST_CACHE = 200
+MAX_COMMENT_CACHE = 300
+
+DUPLICATE_CACHE_LOCK = Lock()
+RECENT_POST_EMBEDDINGS: OrderedDict[str, list[float]] = OrderedDict()
+RECENT_COMMENT_EMBEDDINGS: OrderedDict[str, list[float]] = OrderedDict()
+
+
+class ScoreRequest(BaseModel):
+    text: str
+    type: Literal["post", "comment"] = "post"
+    content_key: str | None = None
+
+
+class ReasonsResponse(BaseModel):
+    relevance: list[str]
+    quality: list[str]
+    duplicate: list[str]
+
+
+class ScoreResponse(BaseModel):
+    relevance: float
+    category: str
+    quality: float
+    duplicate_similarity: float
+    reasons: ReasonsResponse
+
+
+@lru_cache(maxsize=1)
+def get_model() -> SentenceTransformer:
+    return SentenceTransformer(MODEL_NAME)
+
+
+@lru_cache(maxsize=1)
+def get_anchor_embeddings() -> tuple[dict[str, list[float]], dict[str, list[float]]]:
+    model = get_model()
+    career_labels = list(CAREER_ANCHORS.keys())
+    career_texts = [CAREER_ANCHORS[label] for label in career_labels]
+    career_vectors = model.encode(career_texts, normalize_embeddings=True).tolist()
+
+    off_labels = list(OFF_TOPIC_ANCHORS.keys())
+    off_texts = [OFF_TOPIC_ANCHORS[label] for label in off_labels]
+    off_vectors = model.encode(off_texts, normalize_embeddings=True).tolist()
+
+    career = {label: [float(v) for v in vector] for label, vector in zip(career_labels, career_vectors)}
+    off_topic = {label: [float(v) for v in vector] for label, vector in zip(off_labels, off_vectors)}
+    return career, off_topic
+
+
+@app.get("/health")
+def health() -> dict:
+    return {"ok": True, "model": MODEL_NAME}
+
+
+@app.post("/score", response_model=ScoreResponse)
+def score(req: ScoreRequest) -> ScoreResponse:
+    text = (req.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+
+    model = get_model()
+    text_vector = [float(v) for v in model.encode(text, normalize_embeddings=True).tolist()]
+    relevance, category, relevance_reasons = score_relevance(text_vector, req.type)
+    quality, quality_reasons = score_quality(text, req.type)
+    duplicate_similarity, duplicate_reasons = score_duplicate_and_remember(
+        text_vector, req.type, req.content_key, text
+    )
+
+    return ScoreResponse(
+        relevance=relevance,
+        category=category,
+        quality=quality,
+        duplicate_similarity=duplicate_similarity,
+        reasons=ReasonsResponse(
+            relevance=relevance_reasons,
+            quality=quality_reasons,
+            duplicate=duplicate_reasons,
+        ),
+    )
+
+
+def score_relevance(embedding: list[float], content_type: str) -> tuple[float, str, list[str]]:
+    career_anchor_vectors, off_topic_anchor_vectors = get_anchor_embeddings()
+    best_career_similarity = -1.0
+    best_category = "General"
+
+    for label, anchor_vector in career_anchor_vectors.items():
+        similarity = cosine(embedding, anchor_vector)
+        if similarity > best_career_similarity:
+            best_career_similarity = similarity
+            best_category = label
+
+    best_off_topic_similarity = -1.0
+    off_topic_category = ""
+    for label, anchor_vector in off_topic_anchor_vectors.items():
+        similarity = cosine(embedding, anchor_vector)
+        if similarity > best_off_topic_similarity:
+            best_off_topic_similarity = similarity
+            off_topic_category = label
+
+    relevance = clamp01(best_career_similarity)
+    reasons: list[str] = [f"Matched: {best_category}"]
+
+    if best_off_topic_similarity > best_career_similarity:
+        penalty = min(0.35, (best_off_topic_similarity - best_career_similarity) * 0.60)
+        relevance = clamp01(relevance - penalty)
+        reasons.append(f"Off-topic signal ({off_topic_category}) reduced relevance")
+
+    if content_type == "comment" and relevance < 0.35 and best_career_similarity > 0.35:
+        relevance = clamp01(relevance + 0.08)
+        reasons.append("Comment context adjustment applied")
+
+    return relevance, best_category, reasons
+
+
+def score_quality(text: str, content_type: str) -> tuple[float, list[str]]:
+    score = 1.0
+    reasons: list[str] = []
+
+    min_length = 12 if content_type == "comment" else 30
+    ideal_length = 80 if content_type == "comment" else 180
+    text_length = len(text)
+    if text_length < min_length:
+        score -= 0.40
+        reasons.append("Too short")
+    elif text_length < ideal_length:
+        score -= 0.15
+
+    link_count = len(LINK_PATTERN.findall(text))
+    if link_count >= 3:
+        score -= 0.25
+        reasons.append("Too many links")
+    elif link_count == 2:
+        score -= 0.15
+        reasons.append("High link density")
+
+    caps = caps_ratio(text)
+    if caps > 0.70:
+        score -= 0.25
+        reasons.append("Excessive all-caps")
+    elif caps > 0.45:
+        score -= 0.10
+
+    if REPEATED_CHAR_PATTERN.search(text):
+        score -= 0.12
+        reasons.append("Repeated characters detected")
+
+    if REPEATED_PUNCT_PATTERN.search(text):
+        score -= 0.12
+        reasons.append("Repeated punctuation detected")
+
+    diversity = token_diversity(text)
+    if diversity < 0.35:
+        score -= 0.20
+        reasons.append("Low word diversity")
+    elif diversity < 0.50:
+        score -= 0.08
+
+    final_score = clamp01(score)
+    if final_score >= 0.80:
+        reasons.append("Strong content quality")
+
+    return final_score, reasons
+
+
+def score_duplicate_and_remember(
+    embedding: list[float], content_type: str, content_key: str | None, text: str
+) -> tuple[float, list[str]]:
+    cache = RECENT_COMMENT_EMBEDDINGS if content_type == "comment" else RECENT_POST_EMBEDDINGS
+    max_size = MAX_COMMENT_CACHE if content_type == "comment" else MAX_POST_CACHE
+    max_similarity = 0.0
+
+    with DUPLICATE_CACHE_LOCK:
+        for existing in cache.values():
+            similarity = cosine(embedding, existing)
+            if similarity > max_similarity:
+                max_similarity = similarity
+
+        reasons: list[str] = []
+        if max_similarity >= 0.93:
+            reasons.append(f"Near-duplicate content detected ({max_similarity:.2f} similarity)")
+        elif max_similarity >= 0.88:
+            reasons.append(f"Possible duplicate detected ({max_similarity:.2f} similarity)")
+
+        key = (content_key or "").strip()
+        if not key:
+            stable_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+            key = f"{content_type}:{stable_hash}"
+        if key in cache:
+            cache.move_to_end(key)
+        cache[key] = embedding
+
+        while len(cache) > max_size:
+            cache.popitem(last=False)
+
+    return max_similarity, reasons
+
+
+def cosine(a: list[float], b: list[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    return sum(x * y for x, y in zip(a, b))
+
+
+def clamp01(value: float) -> float:
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
+
+
+def caps_ratio(text: str) -> float:
+    letters = [ch for ch in text if ch.isalpha()]
+    if not letters:
+        return 0.0
+    uppercase_count = sum(1 for ch in letters if ch.isupper())
+    return uppercase_count / len(letters)
+
+
+def token_diversity(text: str) -> float:
+    raw_tokens = text.lower().split()
+    cleaned = [NON_ALNUM_PATTERN.sub("", token) for token in raw_tokens]
+    valid_tokens = [token for token in cleaned if token]
+    if not valid_tokens:
+        return 0.0
+    unique_count = len(Counter(valid_tokens))
+    return unique_count / len(valid_tokens)
+
+========== ai_service/README.md ==========
+# AI Service
+
+Start local AI service:
+
+```bash
+pip install -r requirements.txt
+uvicorn app:app --host 127.0.0.1 --port 8008
+```
+
+Available endpoints:
+- `POST /score` -> relevance/category/quality/duplicateSimilarity and reasons used by Java moderation policy
+- `GET /health` -> service health + active model
+
+Java app environment variables:
+
+- `PERSPECTIVE_API_KEY=<your_key>`
+- `PY_AI_URL=http://127.0.0.1:8008`
+
+========== ai_service/requirements.txt ==========
+fastapi==0.116.1
+uvicorn==0.35.0
+sentence-transformers==3.0.1
+

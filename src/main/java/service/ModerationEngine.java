@@ -2,8 +2,10 @@ package service;
 
 import model.ModerationReport;
 import util.PerspectiveClient;
-import util.PythonEmbeddingClient;
+import util.PythonScoreClient;
+import util.Secrets;
 
+import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -23,98 +25,87 @@ public final class ModerationEngine {
     private static final String STATUS_REJECTED = "REJECTED";
 
     private final PerspectiveClient perspectiveClient;
-    private final PythonEmbeddingClient pythonEmbeddingClient;
-    private final RelevanceEngine relevanceEngine;
-    private final DuplicateDetector duplicateDetector;
-    private final QualityScorer qualityScorer;
+    private final PythonScoreClient pythonScoreClient;
     private final ExecutorService executor;
 
     public ModerationEngine() {
-        this(new PerspectiveClient(), new PythonEmbeddingClient(), new DuplicateDetector(), new QualityScorer());
+        this(new PerspectiveClient(), new PythonScoreClient());
     }
 
-    public ModerationEngine(PerspectiveClient perspectiveClient, PythonEmbeddingClient pythonEmbeddingClient,
-            DuplicateDetector duplicateDetector, QualityScorer qualityScorer) {
+    public ModerationEngine(PerspectiveClient perspectiveClient, PythonScoreClient pythonScoreClient) {
         this.perspectiveClient = perspectiveClient;
-        this.pythonEmbeddingClient = pythonEmbeddingClient;
-        this.relevanceEngine = new RelevanceEngine(pythonEmbeddingClient);
-        this.duplicateDetector = duplicateDetector;
-        this.qualityScorer = qualityScorer;
+        this.pythonScoreClient = pythonScoreClient;
         this.executor = Executors.newFixedThreadPool(4);
     }
 
     public CompletableFuture<ModerationReport> analyzeAsync(ContentType type, String text) {
         String safeText = text == null ? "" : text.trim();
-        return CompletableFuture.supplyAsync(() -> analyze(type, safeText), executor);
+        long startNs = System.nanoTime();
+        String perspectiveKey = readPerspectiveApiKey();
+        String wireType = toWireType(type);
+        String contentKey = cacheKey(safeText, type);
+
+        CompletableFuture<PerspectiveOutcome> perspectiveFuture =
+                CompletableFuture.supplyAsync(() -> callPerspective(safeText, perspectiveKey), executor)
+                        .handle(PerspectiveOutcome::from);
+        CompletableFuture<ScoreOutcome> scoreFuture =
+                CompletableFuture.supplyAsync(() -> callScore(safeText, wireType, contentKey), executor)
+                        .handle(ScoreOutcome::from);
+
+        return perspectiveFuture.thenCombine(scoreFuture, (perspective, score) ->
+                buildReport(type, startNs, perspective, score));
     }
 
-    private ModerationReport analyze(ContentType type, String text) {
-        long startNs = System.nanoTime();
+    public void shutdown() {
+        executor.shutdown();
+    }
+
+    private ModerationReport buildReport(ContentType type, long startNs,
+            PerspectiveOutcome perspectiveOutcome, ScoreOutcome scoreOutcome) {
         ModerationReport report = new ModerationReport();
         List<String> reasons = new ArrayList<>();
         report.setReasons(reasons);
         report.setCategory("General");
 
-        String perspectiveKey = readPerspectiveApiKey();
-        String contentType = toWireType(type);
-
-        CompletableFuture<PerspectiveClient.PerspectiveResult> perspectiveFuture =
-                CompletableFuture.supplyAsync(() -> callPerspective(text, perspectiveKey), executor);
-        CompletableFuture<PythonEmbeddingClient.EmbeddingResult> embeddingFuture =
-                CompletableFuture.supplyAsync(() -> callEmbedding(text, contentType), executor);
-
-        PerspectiveClient.PerspectiveResult perspective = null;
-        PythonEmbeddingClient.EmbeddingResult embedding = null;
         boolean fallback = false;
 
-        try {
-            perspective = perspectiveFuture.join();
-            report.setToxicity(perspective.getToxicity());
-            report.setPerspectiveRaw(perspective.getRaw());
-            report.setPerspectiveLatencyMs(perspective.getLatencyMs());
-        } catch (Exception ex) {
+        if (perspectiveOutcome.failed()) {
             fallback = true;
             report.setToxicity(0.50);
             report.setPerspectiveRaw("Perspective unavailable");
-            reasons.add("Perspective API unavailable");
-        }
-
-        try {
-            embedding = embeddingFuture.join();
-            report.setPythonRaw("model=" + embedding.getModel() + ", dim=" + embedding.getDim() + "\n" + embedding.getRaw());
-            report.setPythonLatencyMs(embedding.getLatencyMs());
-        } catch (Exception ex) {
-            fallback = true;
-            report.setPythonRaw("Python embedding service unavailable");
-            reasons.add("Python embedding service unavailable");
-        }
-
-        QualityScorer.QualityResult quality = qualityScorer.score(text, contentType);
-        report.setQualityScore(quality.getQualityScore());
-        reasons.addAll(quality.getReasons());
-
-        if (embedding != null) {
-            try {
-                RelevanceEngine.RelevanceResult relevance = relevanceEngine.evaluate(embedding.getEmbedding(), contentType);
-                report.setRelevance(relevance.getRelevance());
-                report.setCategory(relevance.getCategory());
-                reasons.addAll(relevance.getReasons());
-
-                DuplicateDetector.DuplicateResult dup = duplicateDetector.evaluateAndRemember(
-                        contentType,
-                        cacheKey(text, type),
-                        embedding.getEmbedding());
-                report.setDuplicateSimilarity(dup.getDuplicateSimilarity());
-                reasons.addAll(dup.getReasons());
-            } catch (Exception ex) {
-                fallback = true;
-                report.setRelevance(0.50);
-                report.setDuplicateSimilarity(0.00);
-                reasons.add("Relevance/duplicate analysis unavailable");
+            if ("Missing PERSPECTIVE_API_KEY".equals(perspectiveOutcome.errorDetail())) {
+                reasons.add("Missing PERSPECTIVE_API_KEY");
+            } else if ("Replace YOUR_KEY_HERE".equals(perspectiveOutcome.errorDetail())) {
+                reasons.add("Replace YOUR_KEY_HERE");
+            } else {
+                reasons.add("Perspective API unavailable: " + perspectiveOutcome.errorDetail());
             }
         } else {
+            PerspectiveClient.PerspectiveResult perspective = perspectiveOutcome.result();
+            report.setToxicity(perspective.getToxicity());
+            report.setPerspectiveRaw(perspective.getRaw());
+            report.setPerspectiveLatencyMs(perspective.getLatencyMs());
+        }
+
+        if (scoreOutcome.failed()) {
+            fallback = true;
             report.setRelevance(0.50);
+            report.setCategory("General");
+            report.setQualityScore(0.50);
             report.setDuplicateSimilarity(0.00);
+            report.setPythonRaw("Python services unavailable");
+            reasons.add("Python scoring service unavailable: " + scoreOutcome.errorDetail());
+        } else {
+            PythonScoreClient.ScoreResult score = scoreOutcome.result();
+            report.setRelevance(score.getRelevance());
+            report.setCategory(score.getCategory());
+            report.setQualityScore(score.getQuality());
+            report.setDuplicateSimilarity(score.getDuplicateSimilarity());
+            report.setPythonRaw("score=" + score.getRaw());
+            report.setPythonLatencyMs(score.getLatencyMs());
+            reasons.addAll(score.getRelevanceReasons());
+            reasons.addAll(score.getQualityReasons());
+            reasons.addAll(score.getDuplicateReasons());
         }
 
         if (fallback) {
@@ -131,19 +122,23 @@ public final class ModerationEngine {
     }
 
     private PerspectiveClient.PerspectiveResult callPerspective(String text, String apiKey) {
-        if (apiKey == null || apiKey.isBlank()) {
+        String key = apiKey == null ? "" : apiKey.trim();
+        if (key.isBlank()) {
             throw new CompletionException(new IllegalStateException("Missing PERSPECTIVE_API_KEY"));
         }
         try {
-            return perspectiveClient.analyze(text, apiKey);
+            if ("YOUR_KEY_HERE".equalsIgnoreCase(key)) {
+                throw new IllegalStateException("Replace YOUR_KEY_HERE");
+            }
+            return perspectiveClient.analyze(text, key);
         } catch (Exception ex) {
             throw new CompletionException(ex);
         }
     }
 
-    private PythonEmbeddingClient.EmbeddingResult callEmbedding(String text, String type) {
+    private PythonScoreClient.ScoreResult callScore(String text, String type, String contentKey) {
         try {
-            return pythonEmbeddingClient.embed(text, type);
+            return pythonScoreClient.score(text, type, contentKey);
         } catch (Exception ex) {
             throw new CompletionException(ex);
         }
@@ -182,8 +177,20 @@ public final class ModerationEngine {
     }
 
     private String readPerspectiveApiKey() {
-        String key = System.getenv("PERSPECTIVE_API_KEY");
-        return key == null ? "" : key.trim();
+        // Dev constant (replace YOUR_KEY_HERE locally).
+        if (Secrets.PERSPECTIVE_API_KEY == null) {
+            return "";
+        }
+        String key = Secrets.PERSPECTIVE_API_KEY.trim();
+        if (key.length() >= 2) {
+            if ((key.startsWith("\"") && key.endsWith("\"")) || (key.startsWith("'") && key.endsWith("'"))) {
+                key = key.substring(1, key.length() - 1).trim();
+            }
+        }
+        if ("YOUR_KEY_HERE".equalsIgnoreCase(key)) {
+            return "YOUR_KEY_HERE";
+        }
+        return key;
     }
 
     private String toWireType(ContentType type) {
@@ -191,6 +198,95 @@ public final class ModerationEngine {
     }
 
     private String cacheKey(String text, ContentType type) {
-        return (type == null ? "post" : type.name().toLowerCase(Locale.ROOT)) + ":" + Integer.toHexString(text.hashCode());
+        String normalizedType = type == null ? "post" : type.name().toLowerCase(Locale.ROOT);
+        return normalizedType + ":" + Integer.toHexString(text.hashCode()) + ":" + System.currentTimeMillis();
+    }
+
+    private static String safeErrorDetail(Throwable error) {
+        Throwable root = unwrap(error);
+        if (root instanceof ConnectException) {
+            return "ConnectException (cannot reach Python AI service; verify PY_AI_URL/service status)";
+        }
+        String detail = root == null ? "" : root.getMessage();
+        if (detail == null || detail.isBlank()) {
+            detail = root == null ? "Unknown error" : root.getClass().getSimpleName();
+        }
+        detail = detail.replace('\n', ' ').replace('\r', ' ').trim();
+        if (detail.contains("Missing PERSPECTIVE_API_KEY")) {
+            return "Missing PERSPECTIVE_API_KEY";
+        }
+        if (detail.contains("Replace YOUR_KEY_HERE")) {
+            return "Replace YOUR_KEY_HERE";
+        }
+        if (detail.length() > 120) {
+            return detail.substring(0, 120) + "...";
+        }
+        return detail;
+    }
+
+    private static Throwable unwrap(Throwable error) {
+        Throwable current = error;
+        while (current instanceof CompletionException && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
+    private static final class PerspectiveOutcome {
+        private final PerspectiveClient.PerspectiveResult result;
+        private final String errorDetail;
+
+        private PerspectiveOutcome(PerspectiveClient.PerspectiveResult result, String errorDetail) {
+            this.result = result;
+            this.errorDetail = errorDetail;
+        }
+
+        private static PerspectiveOutcome from(PerspectiveClient.PerspectiveResult result, Throwable error) {
+            if (error == null) {
+                return new PerspectiveOutcome(result, "");
+            }
+            return new PerspectiveOutcome(null, safeErrorDetail(error));
+        }
+
+        private boolean failed() {
+            return result == null;
+        }
+
+        private PerspectiveClient.PerspectiveResult result() {
+            return result;
+        }
+
+        private String errorDetail() {
+            return errorDetail;
+        }
+    }
+
+    private static final class ScoreOutcome {
+        private final PythonScoreClient.ScoreResult result;
+        private final String errorDetail;
+
+        private ScoreOutcome(PythonScoreClient.ScoreResult result, String errorDetail) {
+            this.result = result;
+            this.errorDetail = errorDetail;
+        }
+
+        private static ScoreOutcome from(PythonScoreClient.ScoreResult result, Throwable error) {
+            if (error == null) {
+                return new ScoreOutcome(result, "");
+            }
+            return new ScoreOutcome(null, safeErrorDetail(error));
+        }
+
+        private boolean failed() {
+            return result == null;
+        }
+
+        private PythonScoreClient.ScoreResult result() {
+            return result;
+        }
+
+        private String errorDetail() {
+            return errorDetail;
+        }
     }
 }

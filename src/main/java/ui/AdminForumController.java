@@ -1,5 +1,6 @@
 package ui;
 
+import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.BooleanBinding;
 import javafx.collections.FXCollections;
@@ -24,6 +25,8 @@ import org.kordamp.ikonli.javafx.FontIcon;
 import repo.ForumCommentRepository;
 import repo.ForumPostRepository;
 import repo.UserRepository;
+import service.ModerationEngine;
+import ui.components.AdminModerationDialog;
 import util.Session;
 import util.InputValidator;
 import java.util.List;
@@ -33,6 +36,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
 
 /**
  * Admin control panel controller.
@@ -90,6 +94,8 @@ public class AdminForumController {
     private Button editPostBtn;
     @FXML
     private Button deletePostBtn;
+    @FXML
+    private Button btnAiAnalyzePost;
 
     // Full Post View (Tab 2)
     @FXML
@@ -118,10 +124,13 @@ public class AdminForumController {
     private Button updateCommentBtn2;
     @FXML
     private Button deleteCommentBtn2;
+    @FXML
+    private Button btnAiAnalyzeComment;
 
     private final ForumPostRepository postRepo = new ForumPostRepository();
     private final ForumCommentRepository commentRepo = new ForumCommentRepository();
     private final UserRepository userRepo = new UserRepository();
+    private final ModerationEngine moderationEngine = new ModerationEngine();
 
     private final Map<Long, String> userNameCache = new HashMap<>();
 
@@ -134,6 +143,12 @@ public class AdminForumController {
     private ForumPost selectedPost;
 
     private static final DateTimeFormatter DT = DateTimeFormatter.ofPattern("dd MMM yyyy - HH:mm");
+    private static final String AI_POST_BUTTON_TEXT = "AI Analyze Post";
+    private static final String AI_COMMENT_BUTTON_TEXT = "AI Analyze Comment";
+    private static final String AI_ANALYZING_TEXT = "Analyzing...";
+
+    private boolean aiPostAnalysisInProgress = false;
+    private boolean aiCommentAnalysisInProgress = false;
 
     @FXML
     private void initialize() {
@@ -215,17 +230,20 @@ public class AdminForumController {
             selectedPost = p;
             renderSelectedPost();
             loadComments();
+            refreshAiAnalyzeButtonState();
         });
 
         // Comment selection -> fill form
         commentListView2.getSelectionModel().selectedItemProperty().addListener((obs, oldV, c) -> {
             if (c == null) {
                 refreshAdminCommentActionVisibility();
+                refreshAiAnalyzeButtonState();
                 return;
             }
             commentArea2.setText(c.getContent());
             commentStatusBox2.setValue(c.getStatus());
             refreshAdminCommentActionVisibility();
+            refreshAiAnalyzeButtonState();
         });
 
         // Disable buttons depending on selection
@@ -245,6 +263,8 @@ public class AdminForumController {
 
         updateCommentBtn2.disableProperty().bind(commentListView2.getSelectionModel().selectedItemProperty().isNull());
         deleteCommentBtn2.disableProperty().bind(commentListView2.getSelectionModel().selectedItemProperty().isNull());
+
+        refreshAiAnalyzeButtonState();
 
         // First load
         onRefreshPosts();
@@ -289,6 +309,7 @@ public class AdminForumController {
             if (!allPosts.isEmpty() && postListView.getSelectionModel().getSelectedItem() == null) {
                 postListView.getSelectionModel().selectFirst();
             }
+            refreshAiAnalyzeButtonState();
         } catch (Exception ex) {
             showError("Failed to load posts", ex);
         }
@@ -501,6 +522,7 @@ public class AdminForumController {
 
         deleteCommentBtn2.setVisible(showModify);
         deleteCommentBtn2.setManaged(showModify);
+        refreshAiAnalyzeButtonState();
     }
 
     // =========================
@@ -518,6 +540,7 @@ public class AdminForumController {
             comments.clear();
             if (selectedPost == null) {
                 commentListView2.setItems(comments);
+                refreshAiAnalyzeButtonState();
                 return;
             }
             comments.setAll(commentRepo.findByPostId(selectedPost.getId()));
@@ -526,9 +549,117 @@ public class AdminForumController {
             commentArea2.clear();
             commentStatusBox2.setValue("PENDING");
             refreshAdminCommentActionVisibility();
+            refreshAiAnalyzeButtonState();
         } catch (Exception ex) {
             showError("Failed to load comments", ex);
         }
+    }
+
+    @FXML
+    private void onAiAnalyzePost() {
+        ForumPost post = postListView.getSelectionModel().getSelectedItem();
+        if (post == null) {
+            refreshAiAnalyzeButtonState();
+            return;
+        }
+
+        aiPostAnalysisInProgress = true;
+        btnAiAnalyzePost.setText(AI_ANALYZING_TEXT);
+        refreshAiAnalyzeButtonState();
+
+        String postText = safe(post.getTitle()) + "\n\n" + safe(post.getContent());
+        moderationEngine.analyzeAsync(ModerationEngine.ContentType.POST, postText)
+                .whenComplete((report, error) -> Platform.runLater(() -> {
+                    aiPostAnalysisInProgress = false;
+                    btnAiAnalyzePost.setText(AI_POST_BUTTON_TEXT);
+                    refreshAiAnalyzeButtonState();
+
+                    if (error != null) {
+                        showAiAnalysisError("post", error);
+                        return;
+                    }
+                    if (report == null) {
+                        showAiAnalysisError("post", new IllegalStateException("No moderation report returned"));
+                        return;
+                    }
+
+                    String identifier = "Post #" + post.getId();
+                    AdminModerationDialog.show(report, "Post", identifier);
+                }));
+    }
+
+    @FXML
+    private void onAiAnalyzeComment() {
+        ForumComment comment = commentListView2.getSelectionModel().getSelectedItem();
+        if (comment == null) {
+            refreshAiAnalyzeButtonState();
+            return;
+        }
+
+        aiCommentAnalysisInProgress = true;
+        btnAiAnalyzeComment.setText(AI_ANALYZING_TEXT);
+        refreshAiAnalyzeButtonState();
+
+        String commentText = safe(comment.getContent());
+        moderationEngine.analyzeAsync(ModerationEngine.ContentType.COMMENT, commentText)
+                .whenComplete((report, error) -> Platform.runLater(() -> {
+                    aiCommentAnalysisInProgress = false;
+                    btnAiAnalyzeComment.setText(AI_COMMENT_BUTTON_TEXT);
+                    refreshAiAnalyzeButtonState();
+
+                    if (error != null) {
+                        showAiAnalysisError("comment", error);
+                        return;
+                    }
+                    if (report == null) {
+                        showAiAnalysisError("comment", new IllegalStateException("No moderation report returned"));
+                        return;
+                    }
+
+                    String identifier = "Comment #" + comment.getId() + " on Post #" + comment.getPostId();
+                    AdminModerationDialog.show(report, "Comment", identifier);
+                }));
+    }
+
+    private void refreshAiAnalyzeButtonState() {
+        boolean hasPostSelection = postListView != null
+                && postListView.getSelectionModel().getSelectedItem() != null;
+        boolean hasCommentSelection = commentListView2 != null
+                && commentListView2.getSelectionModel().getSelectedItem() != null;
+
+        if (btnAiAnalyzePost != null) {
+            btnAiAnalyzePost.setDisable(!hasPostSelection || aiPostAnalysisInProgress);
+        }
+        if (btnAiAnalyzeComment != null) {
+            btnAiAnalyzeComment.setDisable(!hasCommentSelection || aiCommentAnalysisInProgress);
+        }
+    }
+
+    private void showAiAnalysisError(String contentType, Throwable error) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("AI Analysis Failed");
+        alert.setHeaderText("Unable to analyze " + contentType);
+        alert.setContentText(shortErrorMessage(error));
+        alert.showAndWait();
+    }
+
+    private String shortErrorMessage(Throwable error) {
+        Throwable root = error;
+        while (root instanceof CompletionException && root.getCause() != null) {
+            root = root.getCause();
+        }
+        if (root == null) {
+            return "Unexpected error.";
+        }
+        String message = root.getMessage();
+        if (message == null || message.isBlank()) {
+            message = root.getClass().getSimpleName();
+        }
+        message = message.replace('\n', ' ').replace('\r', ' ').trim();
+        if (message.length() > 140) {
+            message = message.substring(0, 140) + "...";
+        }
+        return message;
     }
 
     @FXML
@@ -723,6 +854,7 @@ public class AdminForumController {
     @FXML
     private void onClose() {
         // Admin window is treated as app-root; closing exits process.
+        moderationEngine.shutdown();
         System.exit(0);
     }
 

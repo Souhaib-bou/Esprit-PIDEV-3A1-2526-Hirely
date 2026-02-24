@@ -4,7 +4,11 @@ import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import util.DebugLog;
+import util.PerspectiveClient;
 import util.Session;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
  * JavaFX entry point for the Hirely forum desktop app.
@@ -37,9 +41,35 @@ public class Main extends Application {
         stage.centerOnScreen();
 
         stage.show();
+
+        runPerspectiveSelfTestAsync();
     }
 
     public static void main(String[] args) {
         launch();
+    }
+
+    private void runPerspectiveSelfTestAsync() {
+        CompletableFuture.runAsync(() -> {
+            DebugLog.info("PerspectiveSelfTest", "Starting Perspective self-test");
+            try {
+                PerspectiveClient.PerspectiveResult result = new PerspectiveClient().selfTest();
+                DebugLog.info("PerspectiveSelfTest", "Perspective self-test success: toxicity="
+                        + result.getToxicity() + ", latencyMs=" + result.getLatencyMs());
+            } catch (Exception ex) {
+                DebugLog.error("PerspectiveSelfTest", "Perspective self-test failed: " + safeMessage(ex), ex);
+            }
+        });
+    }
+
+    private String safeMessage(Throwable ex) {
+        if (ex == null) {
+            return "";
+        }
+        String msg = ex.getMessage();
+        if (msg == null || msg.isBlank()) {
+            return ex.getClass().getSimpleName();
+        }
+        return msg.replace('\n', ' ').replace('\r', ' ').trim();
     }
 }
