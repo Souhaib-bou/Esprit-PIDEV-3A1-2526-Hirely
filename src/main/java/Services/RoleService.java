@@ -2,6 +2,7 @@ package Services;
 
 import Models.Role;
 import Utils.MyDB;
+
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,16 +11,10 @@ public class RoleService {
 
     private final Connection cnx;
 
-    /**
-     * Creates a new RoleService instance.
-     */
     public RoleService() {
         cnx = MyDB.getInstance().getConnection();
     }
 
-    /**
-     * Returns the allroles value.
-     */
     public List<Role> getAllRoles() throws SQLException {
         List<Role> list = new ArrayList<>();
         String sql = "SELECT role_id, name, status, default_dashboard, description FROM role";
@@ -39,9 +34,6 @@ public class RoleService {
         return list;
     }
 
-    /**
-     * Returns the roleidbyname value.
-     */
     public Integer getRoleIdByName(String roleName) throws SQLException {
         String sql = "SELECT role_id FROM role WHERE LOWER(name) = LOWER(?) LIMIT 1";
         PreparedStatement ps = cnx.prepareStatement(sql);
@@ -50,9 +42,6 @@ public class RoleService {
         return rs.next() ? rs.getInt("role_id") : null;
     }
 
-    /**
-     * Creates a new record and updates the UI.
-     */
     public int addRole(Role r) throws SQLException {
         String sql = "INSERT INTO role (name, status, default_dashboard, description) VALUES (?, ?, ?, ?)";
         PreparedStatement ps = cnx.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
@@ -67,9 +56,6 @@ public class RoleService {
         throw new SQLException("Failed to retrieve generated role_id");
     }
 
-    /**
-     * Updates the selected record and refreshes the UI.
-     */
     public void updateRole(int roleId, Role r) throws SQLException {
         String sql = "UPDATE role SET name=?, status=?, default_dashboard=?, description=? WHERE role_id=?";
         PreparedStatement ps = cnx.prepareStatement(sql);
@@ -81,9 +67,6 @@ public class RoleService {
         ps.executeUpdate();
     }
 
-    /**
-     * Deletes the selected record and refreshes the UI.
-     */
     public void deleteRole(int roleId) throws SQLException {
         // if your FK is ON DELETE SET NULL, this is enough
         String sql = "DELETE FROM role WHERE role_id=?";

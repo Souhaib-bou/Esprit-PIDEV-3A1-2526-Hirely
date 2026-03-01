@@ -1,6 +1,5 @@
 package Services;
 
-import Models.User;
 import java.sql.SQLException;
 
 public class AuthService {

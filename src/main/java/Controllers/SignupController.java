@@ -1,16 +1,18 @@
 package Controllers;
 
-import Models.Role;
 import Models.User;
-import Services.RoleService;
+import Models.Role;
 import Services.UserService;
-import java.sql.SQLException;
-import javafx.collections.FXCollections;
+import Services.RoleService;
+
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.stage.Stage;
+import javafx.collections.FXCollections;
+
+import java.sql.SQLException;
 
 public class SignupController {
 
@@ -29,9 +31,6 @@ public class SignupController {
     private final RoleService roleService = new RoleService();
 
     @FXML
-    /**
-     * Initializes UI components and loads initial data.
-     */
     private void initialize() {
 
         // Status
@@ -52,9 +51,6 @@ public class SignupController {
     }
 
     @FXML
-    /**
-     * Handles the associated UI event.
-     */
     private void handleSignup() {
 
         String fn = txtFirstName.getText() == null ? "" : txtFirstName.getText().trim();
@@ -128,9 +124,6 @@ public class SignupController {
     }
 
     @FXML
-    /**
-     * Handles the associated UI event.
-     */
     private void handleBackToLogin() {
         try {
             Parent loginRoot = FXMLLoader.load(getClass().getResource("/LoginView.fxml"));

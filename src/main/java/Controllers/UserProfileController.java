@@ -2,155 +2,71 @@ package Controllers;
 
 import Models.User;
 import Services.UserService;
-import Utils.AvatarCropDialog;
 import Utils.UserSession;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.sql.SQLException;
+
+import Utils.QRCodeGenerator;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.shape.Circle;
-import javafx.stage.FileChooser;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+
+import java.sql.SQLException;
 
 public class UserProfileController {
 
-    @FXML private TextField txtFirstName;
-    @FXML private TextField txtLastName;
-    @FXML private TextField txtEmail;
+    @FXML private TextField     txtFirstName;
+    @FXML private TextField     txtLastName;
+    @FXML private TextField     txtEmail;
     @FXML private PasswordField txtPassword;
-
-    @FXML private TextField txtStatus;     // ✅ MISSING IN YOUR CODE
-    @FXML private Label lblMsg;            // ✅ MISSING IN YOUR CODE
-
-    @FXML private ImageView imgProfile;
-    @FXML private Label lblProfileInitials;
-
-    private String selectedProfilePicPath;
+    @FXML private ImageView     qrCodeView;
+    @FXML private Label         lblMsg;
 
     private final UserService userService = new UserService();
     private MainShellController shell;
 
     @FXML
-    /**
-     * Initializes UI components and loads initial data.
-     */
     private void initialize() {
         loadFromSession();
-        applyCircleClip(imgProfile, 90);
-
     }
 
-    /**
-     * Sets the shell value.
-     */
     public void setShell(MainShellController shell) {
         this.shell = shell;
     }
-    /**
-     * Executes this operation.
-     */
-    public static void applyCircleClip(ImageView iv, double size) {
-        iv.setFitWidth(size);
-        iv.setFitHeight(size);
-        iv.setPreserveRatio(true);
 
-        Circle clip = new Circle(size / 2.0, size / 2.0, size / 2.0);
-        iv.setClip(clip);
-
-        // keep clip centered even if layout changes
-        iv.layoutBoundsProperty().addListener((obs, oldB, b) -> {
-            clip.setCenterX(b.getWidth() / 2.0);
-            clip.setCenterY(b.getHeight() / 2.0);
-            clip.setRadius(Math.min(b.getWidth(), b.getHeight()) / 2.0);
-        });
-    }
-
-    /**
-     * Loads and refreshes data displayed in the view.
-     */
     private void loadFromSession() {
         User u = UserSession.getInstance().getCurrentUser();
         if (u == null) return;
 
-        txtFirstName.setText(u.getFirstName());
-        txtLastName.setText(u.getLastName());
-        txtEmail.setText(u.getEmail());
-        txtPassword.setText(u.getPassword());
-        txtStatus.setText(u.getStatus() == null ? "active" : u.getStatus());
+        txtFirstName.setText(nullToEmpty(u.getFirstName()));
+        txtLastName.setText(nullToEmpty(u.getLastName()));
+        txtEmail.setText(nullToEmpty(u.getEmail()));
+        txtPassword.setText(nullToEmpty(u.getPassword()));
 
-        String fn = u.getFirstName() == null ? "" : u.getFirstName().trim();
-        String ln = u.getLastName() == null ? "" : u.getLastName().trim();
-        String initials = (fn.isEmpty() ? "U" : fn.substring(0, 1).toUpperCase())
-                + (ln.isEmpty() ? "" : ln.substring(0, 1).toUpperCase());
-        lblProfileInitials.setText(initials.trim().isEmpty() ? "U" : initials);
-
-        selectedProfilePicPath = u.getProfilePic();
-        refreshProfileImagePreview(selectedProfilePicPath);
+        generateQRCode(u);
     }
 
-    /**
-     * Loads and refreshes data displayed in the view.
-     */
-    private void refreshProfileImagePreview(String path) {
-        boolean hasPic = path != null && !path.trim().isEmpty() && new File(path).exists();
-        if (hasPic) {
-            imgProfile.setImage(new Image(new File(path).toURI().toString(), true));
-            lblProfileInitials.setVisible(false);
-        } else {
-            imgProfile.setImage(null);
-            lblProfileInitials.setVisible(true);
-        }
-    }
-
-    @FXML
-    /**
-     * Handles the associated UI event.
-     */
-    private void handleChoosePhoto() {
-        FileChooser fc = new FileChooser();
-        fc.setTitle("Choose Profile Picture");
-        fc.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg")
-        );
-
-        File chosen = fc.showOpenDialog(txtEmail.getScene().getWindow());
-        if (chosen == null) return;
-
+    private void generateQRCode(User u) {
         try {
-            File dir = new File("userpics");
-            if (!dir.exists()) dir.mkdirs();
-
-            User u = UserSession.getInstance().getCurrentUser();
-            File dest = new File(dir, "user_" + u.getUserId() + ".png");
-
-            boolean saved = AvatarCropDialog.showAndSave(
-                    txtEmail.getScene().getWindow(),
-                    chosen,
-                    dest,
-                    256  // output size
-            );
-
-            if (!saved) return;
-
-            selectedProfilePicPath = dest.getAbsolutePath();
-            refreshProfileImagePreview(selectedProfilePicPath);
-            lblMsg.setText("Photo updated. Click Save Changes to apply to your account.");
-
+            String vCard =
+                    "BEGIN:VCARD\r\n" +
+                    "VERSION:3.0\r\n" +
+                    "FN:" + u.getFullName() + "\r\n" +
+                    "N:" + nullToEmpty(u.getLastName()) + ";" + nullToEmpty(u.getFirstName()) + ";;;\r\n" +
+                    "EMAIL:" + nullToEmpty(u.getEmail()) + "\r\n" +
+                    "TITLE:" + nullToEmpty(u.getRoleName()) + "\r\n" +
+                    "NOTE:Status: " + nullToEmpty(u.getStatus()) + "\r\n" +
+                    "END:VCARD";
+            qrCodeView.setImage(QRCodeGenerator.generate(vCard, 300));
         } catch (Exception e) {
             e.printStackTrace();
-            lblMsg.setText("Failed to crop photo: " + e.getMessage());
         }
     }
 
-
     @FXML
-    /**
-     * Handles the associated UI event.
-     */
     private void handleSave() {
         User u = UserSession.getInstance().getCurrentUser();
         if (u == null) return;
@@ -170,6 +86,7 @@ public class UserProfileController {
         }
 
         try {
+            // keep roleId + status unchanged
             User updated = new User(
                     u.getUserId(),
                     fn,
@@ -179,16 +96,14 @@ public class UserProfileController {
                     u.getRoleId(),
                     u.getStatus()
             );
-            updated.setProfilePic(selectedProfilePicPath);
 
             userService.updateUser(u.getUserId(), updated);
 
-            // ✅ update session too (INCLUDING profile pic)
+            // update session too
             u.setFirstName(fn);
             u.setLastName(ln);
             u.setEmail(em);
             u.setPassword(pw);
-            u.setProfilePic(selectedProfilePicPath);
 
             lblMsg.setText("Profile updated.");
             if (shell != null) shell.refreshShellUserChip();
@@ -200,9 +115,6 @@ public class UserProfileController {
     }
 
     @FXML
-    /**
-     * Handles the associated UI event.
-     */
     private void handleDeactivateAccount() {
         User u = UserSession.getInstance().getCurrentUser();
         if (u == null) return;
@@ -217,6 +129,8 @@ public class UserProfileController {
 
         try {
             userService.setUserStatus(u.getUserId(), "inactive");
+
+            // clear session + logout to login screen
             UserSession.getInstance().clear();
             if (shell != null) shell.handleLogout();
 
@@ -227,9 +141,6 @@ public class UserProfileController {
     }
 
     @FXML
-    /**
-     * Handles the associated UI event.
-     */
     private void handleDeleteAccount() {
         User u = UserSession.getInstance().getCurrentUser();
         if (u == null) return;
@@ -242,6 +153,8 @@ public class UserProfileController {
             try {
                 userService.deleteUser(u.getUserId());
                 UserSession.getInstance().clear();
+
+                // return to login
                 if (shell != null) shell.handleLogout();
 
             } catch (SQLException e) {
@@ -252,16 +165,32 @@ public class UserProfileController {
     }
 
     @FXML
-    /**
-     * Handles the associated UI event.
-     */
+    private void handleSetupFaceId() {
+        User u = UserSession.getInstance().getCurrentUser();
+        if (u == null) return;
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/FaceSetupView.fxml"));
+            Parent root = loader.load();
+
+            FaceSetupController ctrl = loader.getController();
+            ctrl.setUserId(u.getUserId());
+
+            Stage dialog = new Stage();
+            dialog.setTitle("Hirely — Setup Face ID");
+            dialog.setScene(new Scene(root, 700, 580));
+            dialog.initModality(Modality.APPLICATION_MODAL);
+            dialog.show();
+        } catch (Exception e) {
+            e.printStackTrace();
+            lblMsg.setText("Cannot open Face ID setup: " + e.getMessage());
+        }
+    }
+
+    @FXML
     private void handleBack() {
         if (shell != null) shell.backToPlans();
     }
 
-    /**
-     * Executes this operation.
-     */
     private String nullToEmpty(String s) {
         return s == null ? "" : s;
     }

@@ -2,8 +2,6 @@ package test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import Models.User;
-import Services.UserService;
 import java.sql.SQLException;
 import java.util.List;
 import org.junit.jupiter.api.*;

@@ -1,7 +1,5 @@
 package Controllers;
 
-import Models.User;
-import Services.UserService;
 import Utils.AvatarCropDialog;
 import Utils.UserSession;
 import java.io.File;

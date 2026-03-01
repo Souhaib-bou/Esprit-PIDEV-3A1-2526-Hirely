@@ -1,7 +1,5 @@
 package Utils;
 
-import Models.User;
-
 public class UserSession {
 
     private static UserSession instance;

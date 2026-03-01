@@ -3,7 +3,7 @@ package Controllers;
 import Models.OnboardingPlan;
 import Models.User;
 import Services.PlanService;
-import Services.UserService;
+
 import java.net.URL;
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -11,6 +11,8 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
 import java.util.ResourceBundle;
+
+import Services.UserService;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;

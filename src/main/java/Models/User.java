@@ -9,6 +9,8 @@ public class User {
     private Integer roleId;   // nullable
     private String status;
     private String profilePic;
+    private String googleId;
+    private String faceData;
 // "active" | "inactive"
 
     // convenience fields for table display (optional)
@@ -61,6 +63,12 @@ public class User {
     }
     public String getProfilePic() { return profilePic; }
     public void setProfilePic(String profilePic) { this.profilePic = profilePic; }
+
+    public String getGoogleId() { return googleId; }
+    public void setGoogleId(String googleId) { this.googleId = googleId; }
+
+    public String getFaceData() { return faceData; }
+    public void setFaceData(String faceData) { this.faceData = faceData; }
 
 
     @Override

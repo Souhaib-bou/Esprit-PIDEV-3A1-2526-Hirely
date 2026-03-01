@@ -1,6 +1,5 @@
 package Controllers;
 
-import Models.User;
 import Services.AuthService;
 import Utils.UserSession;
 import javafx.fxml.FXML;

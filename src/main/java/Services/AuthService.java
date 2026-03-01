@@ -1,15 +1,13 @@
 package Services;
 
 import Models.User;
+
 import java.sql.SQLException;
 
 public class AuthService {
 
     private final UserService userService = new UserService();
 
-    /**
-     * Executes this operation.
-     */
     public User login(String email, String password) throws SQLException {
 
         String em = (email == null) ? "" : email.trim();

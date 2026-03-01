@@ -4,7 +4,7 @@ package Controllers;
 
 import Models.Application;
 import Services.ApplicationService;
-import Services.EmailService;
+import Services.EmailServicejob;
 import Services.ResumeParserService;
 import Utils.PdfTextExtractor;
 import Utils.UserSession;
@@ -211,7 +211,7 @@ public class ApplicationController {
                 String candidateEmail = emailField.getText();
 
                 if (recruiterEmail != null) {
-                    EmailService.sendApplicationNotification(
+                    EmailServicejob.sendApplicationNotification(
                             recruiterEmail,
                             "Recruiter",
                             candidateEmail,
@@ -308,7 +308,7 @@ public class ApplicationController {
                     String jobTitle = service.getJobTitle(currentJobId != null ? currentJobId : selectedApplication.getJobOfferId());
 
                     if (candidateEmail != null && !candidateEmail.isEmpty()) {
-                        EmailService.sendStatusUpdateNotification(
+                        EmailServicejob.sendStatusUpdateNotification(
                                 candidateEmail,
                                 candidateEmail, // use email as name since we don't store full name
                                 jobTitle,

@@ -16,7 +16,6 @@ import javafx.fxml.Initializable;
 import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.image.Image;
@@ -313,7 +312,7 @@ public class MainShellController implements Initializable {
     /**
      * Navigates to the requested screen.
      */
-    private 
+    private
     /**
      * Builds and displays the Home (Dashboard) view.
      * This view is created programmatically to keep navigation simple while staying UI-only.

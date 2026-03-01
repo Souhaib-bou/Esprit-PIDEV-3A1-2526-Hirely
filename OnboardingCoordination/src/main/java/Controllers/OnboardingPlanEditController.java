@@ -1,9 +1,8 @@
 package Controllers;
 
 import Models.OnboardingPlan;
-import Models.User;
 import Services.PlanService;
-import Services.UserService;
+
 import java.net.URL;
 import java.sql.SQLException;
 import java.time.LocalDate;

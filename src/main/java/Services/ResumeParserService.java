@@ -10,7 +10,6 @@ import java.util.Map;
 public class ResumeParserService {
 
 
-    private static final String API_KEY = System.getenv("GROQ_API_KEY");
     public static Map<String, String> parse(String resumeText) {
         Map<String, String> result = new HashMap<>();
 
